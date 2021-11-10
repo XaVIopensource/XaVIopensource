@@ -28,7 +28,7 @@
 `define INPUTSIZE 8 //set the input size n
 `define GROUPSIZE 4 //set the group size = 1, 2, 4 or 8
 
-module adder8_brent_kung(A, B, CI, S, CO);
+module adder8(A, B, CI, S, CO);
 
  input [`INPUTSIZE - 1:0]	A;
  input [`INPUTSIZE - 1:0]	B;
@@ -229,3 +229,6 @@ module FA_CLA_prefix(a,b,cin,s,q);
  assign q[1] = a & b;
 
 endmodule
+
+`undefine INPUTSIZE
+`undefine GROUPSIZE
