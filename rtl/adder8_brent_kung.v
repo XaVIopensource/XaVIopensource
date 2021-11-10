@@ -20,16 +20,15 @@
 // Thanks!
 // (First check-in is the original)
 // Modifications needed:
-// - Fixed 8-bit with carry-in and carry-out.
-// Will group size be 4 or 8?
+// - Fixed 8-bit with carry-in and carry-out (done)
+// - Not finalised: Group size set to 4 initially for convenience.
+// - Add carry-in
+// - Add carry-out (done)
 
+`define INPUTSIZE 8 //set the input size n
+`define GROUPSIZE 4 //set the group size = 1, 2, 4 or 8
 
-
-
-`define INPUTSIZE 64 //set the input size n
-`define GROUPSIZE 8 //set the group size = 1, 2, 4 or 8
-
-module Brent_Kung_Adder(A,B,S);
+module adder8_brent_kung(A, B, CI, S, CO);
 
  input [`INPUTSIZE - 1:0]	A;
  input [`INPUTSIZE - 1:0]	B;
@@ -40,7 +39,9 @@ module Brent_Kung_Adder(A,B,S);
  wire [`INPUTSIZE / `GROUPSIZE:0] cin;
  wire [`INPUTSIZE / `GROUPSIZE * 2 - 1:0]	q;
  
- assign cin[0] = 1'b0;
+ assign CO = 1'b0; // !!! Not implemented yet!
+
+ assign cin[0] = CI;
  
  generate
  genvar i;
