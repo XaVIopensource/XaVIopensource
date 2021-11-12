@@ -2,7 +2,7 @@
 # XaVI: A 16-bit Processor for Analog ICs
 
 
-## 1. Not Another One!
+# 1. Not Another One!
 
 Why do we need _another_ processor?
 * **For Analog/Mixed-Signal**: Many analog/mixed-signal chip providers have developed their own proprietary little processor for embedding into their chips. But there is no _standard_, _open_ 16-bit processor: the ARM or MIPS of the mixed-signal world. It needs to be little. Not so '8-bit' little that its code density adversely affects dynamic power consumption but not so '32-bit' big that its area adversely affects dynamic power consumption. 16 bits is _juuuust_ right - just a bit bigger than the ENOB of an ADC or DAC. Digi-people say an ARM Cortex-M is small, and that is true in 22nm [footnote]. But you don't want non-analog factors determining what process node you use for your analog chips.
@@ -20,7 +20,7 @@ Enter XaVI: XVI for 16 and 'a' for analog.
 * Wales is about 2 x 10^22μm^2.
 
 
-## 2. The Instructions Concept
+# 2. The Instructions Concept
 
 The CPU comprises:
 * `Fetch` unit
@@ -61,8 +61,8 @@ Occasionally, there may be some Deuterium (1 proton + 1 neutron: one Huffman fet
 Example: `ADD (R1+), R2` gets broken down into `ADD (R1), R2` and `INC R1`==`ADD #1, R1`. 
 The `Datapath` does not have the hardware resources to do this in a single hadron.
 Occasionally, there may be some molecule in the atomic operation: H2 (2 protons); the chemical bonds make the two ions inseparate; a hardware interrupt will have to wait. 
-Example: a read-modify-write `ADD (R1), R2; MOVE R2, (R1)`. This chemical bonding is unrelated to the nuclear binding of hadrons. 
-There could be both chemical and nuclear: a molecule of Hydrogen plus Deuterium: `ADD (R1), R2; MOVE R2, (R1); INC R1`. 
+Example: a read-modify-write is `ADD (R1), R2`; `MOVE R2, (R1)`. This chemical bonding is unrelated to the nuclear binding of hadrons. 
+There could be both chemical and nuclear: a molecule of Hydrogen plus Deuterium: `ADD (R1), R2`; `MOVE R2, (R1)`; `INC R1`. 
 You get the idea: the fundamental execution 'primitive' is the hadron.
 one Huffman fetch leads to two Uncompressed instructions.
 
@@ -93,10 +93,10 @@ For example, perhaps some application has the need to do lots of sums of product
 
 leading to hadronic sequences like
 
-`MOVE (R1), R2; ADD #1, R1; MUL (R3), R2; ADD #1, R3; ADD R2, R4; SUB #1, R5; BRNZ -6` 
+`MOVE (R1), R2`; `ADD #1, R1`; `MUL (R3), R2`; `ADD #1, R3`; `ADD R2, R4`; `SUB #1, R5`; `BRNZ -6` 
 
 (the relative jump here being measured in hadrons).
-The XaVI for the silicon for this application could have a single Huffman ion instruction for this 7-hadron sequence. 
+The XaVI silicon for this application could have a single Huffman ion instruction for this 7-hadron sequence. 
 Its `Fetch` unit would break it down into the separate hadrons.
 
 Another XaVI implementation may have no such need and would use some other Huffman coding. (The above example is rather extreme.)
@@ -104,7 +104,20 @@ Another XaVI implementation may have no such need and would use some other Huffm
 (As long as the Uncompressed instruction set is sufficiently orthogonal, the compiler can produce consistent hadronic sequences that are also efficient.)
 
 
-## 2.3 An Instruction Set / Compiler Strategy
+
+## 2.3 Atomic Instructions
+
+Many 'basic' instructions will actually be formed from multiple atomic hadrons. For example:
+- `PUSH Rx` will be implemented as `MOVE Rx, (SP)`; `ADD #1, SP`.
+- `POP  Rx` will be implemented as `SUB #1, SP`; `MOVE (SP), Rx`.
+- `JSR aaaa` will be implemented as `MOVE PC, (SP)`; `ADD #1, SP`; `MOVE aaaa, PC`.
+- `RETN` will be implemented as `SUB #1, SP`; `MOVE (SP), PC` (i.e. `POP PC`.
+- `RETI` (return from interrupt) will be implemented as `POP PC`, `POP SF` (4 hadrons). 
+And the `Scheduler` also handles interrupts by inserting instructions: `PUSH SF`, `PUSH PC`, `MOVE #0000, PC`.
+{Query: do we want the stack to move up or down memory?}
+
+
+## 2.4 An Instruction Set / Compiler Strategy
 
 Given that the application is not defined before the compiler is produced, there is this strategy:
 1. Generate a representative test suite (of C code) for the anticipated _type_ of application.
@@ -140,7 +153,7 @@ The capabilities of the `Datapath` unit define tha VLIW instructions and therefo
 The design of the unit will be bigger than most XaVI implementation, relying on synthesis to remove unused parts.
 
 
-** 3.1 The Register Set
+## 3.1 The Register Set
 
 The framework provides for between 8 and 32 registers. Included within these are:
 * `R0` = `ZERO`: only ever returns zero.
@@ -149,7 +162,7 @@ The framework provides for between 8 and 32 registers. Included within these are
 * `R3` = `SP` stack pointer - actually just the same as higher registers. The compiler sould use any register above 2 for the stack pointer.
 
 
-** 3.2 Operations and Units
+## 3.2 Operations
 
 The `Datapath` provides a 3-term RISC architecture: `c = func(a, b)` where a and b can be one of:
 * A register `Ra`, `Rb` ('register' addressing mode)
@@ -164,10 +177,51 @@ The destination may be one of:
 * Memory write mem[c]
 
 The function may be derived from one of:
-* `AU1`: dyadic arithmetic unit, fundamentally providing `ADD` and derivative instructions
-* `LU2`: dyadic logic unit, fundamentally providing `AND`, `OR` and `XOR` or derivatives
+* `ALU`: unary arithmetic logic unit
+* `ALU1`: dyadic arithmetic logic unit
 * `SU3`: unary shift unit, fundamentally providing `SL`, `ROL`, `SR` and `ROR` instructions
 * `XU4`: optional external custom unit. This is likely to provide multiply and multiply-accumulate instructions but the precise form can be customized.
 
 
+| Unary   | Operations |
+|---------|---|
+| `MOVE`  | Move (pass through) |
+| `RORC`  | Rotate right thru carry  |
+| `RORA`  | Rotate right, arithmetic  |
+| `SEXT`  | Sign-extend byte |
+| `SWPB`  | Swap bytes  |
+
+| Dyadic    | Operations |
+|-----------|---|
+| `ADD`     | Add |
+| `ADDC`    | Add with carry |
+| `SUB`     | Subtract |
+| `SUBC`    | Subtract with carry |
+| `CMP`     | Compare  (`SUB` without write-back) |
+| `AND`     | Logical AND |
+| `CLR`     | Clear (logical AND with 1's complement) |
+| `OR`      | Logical OR, equivalent to `SET` |
+| `XOR`     | Exclusive OR |
+| `BIT`     | Bit test (logical AND without write-back) |
+
+Note: 
+- `ROLA Rx` is the equivalent of `ADDC Rx, Rx`.
+- `ROLC Rx` is the equivalent of `ADDC Rx, Rx`.
+- `SWPB` is the equivalent of `RORA` 8 times.
+
+{What about `SHR`, `SHLL` and `SHLA` arithmetic and logical shifts left and right?}
+
+By convention, 'Jumps' are long absolute: `MOVE aaaa, PC` for example and 'branches' are short relative, conditional on the `SF` flags. But the Uncompressed instructions need not make the distinction. Relative addressing just performs an `ADD` through the `ALU`.
+
+| Opcode | Condition |
+|--------|--|
+| `BN`Z  | `Z`=0 |
+| `BZ`   | `Z`=1 |
+| `BPOS` | `N`=0 |
+| `BNEG` | `N`=1 |
+| `BNC`  | `C`=0 |
+| `BC`   | `C`=1 |
+| `BGE`  | `N`=`V` |
+| `BL`   | not `N`=`V` |
+| `BRA`  | always |
 
