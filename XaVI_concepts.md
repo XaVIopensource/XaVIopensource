@@ -264,4 +264,29 @@ A single Uncompressed instruction cycle will likely be done over a number of pro
 
 
 
+# 3. Port Interface
+
+The _basic_ port interface is as follows:
+
+| dir.n  | Port      | Description |
+|--------|-----------|---|
+| input  | `RSTN`         | Reset, active low |
+| input  | `CKEN[:0]`     | Clocks, including phased ones for the fences |
+| output | `PREAD`        | Program instruction bus: read enable |
+| output | `PADDR[:1]`    | Program instruction bus: address |
+| input  | `PRDATA[15:0]` | Program instruction bus: read data |
+| output | `DREAD`        | Data bus: read enable |
+| output | `DWRITE`       | Data bus: write enable |
+| output | `DADDR[:1]`    | Data bus: address |
+| output | `DWDATA[15:0]` | Data bus: write data |
+| input  | `DRDATA[15:0]` | Data bus: read data |
+| input  | `IRQ`          | Interrupt request, active high |
+| output | `R[:1][:]`     | Register values, observable for co-processor |
+| output | `BRKPT`        | `PC` matches `Rt` (where 't' is the number of the last register) |
+
+This excludes the `Control` block, hence the source clock. The table excludes other signals that aid expansion and customization.
+
+The Debug interface is part of the system outside of the core XaVI processor. However, it does provide one debug resource: the `BRKPT` output.
+The `Control` unit handles starting and stopping (and single-stepping) of the processor. If the hardware breakpoint is enabled, the `Control` unit should halt execution when `BRKPT` is asserted, indicating that the `PC` has reached the hardware breakpoint. Code used during debugging must be generated from a compiler that does not use the top register. The compiler configuration could be modified for final code generation for a more optimum execution. This means that a register is not 'wasted' in such an area-critical design.
+
 
