@@ -15,11 +15,7 @@ Why do we need _another_ processor?
 Enter XaVI: XVI for 16 and 'a' for analog.
 
 
-### Silly Marketing
-
-[footnote]: On a 22nm CMOS process, the processor should fit within an area less than 30μm x 30μm. That's over 1000 processors per square millimeter. At 2021 bleeding edge node 5nm, that's over a _billion_ processors per 12" wafer! (Raw CPUs, without memory though.)
-
-Standard size reference points:
+[footnote]: Silly Marketing... On a 22nm CMOS process, the processor should fit within an area less than 30μm x 30μm. That's over 1000 processors per square millimeter. At 2021 bleeding edge node 5nm, that's over a _billion_ processors per 12" wafer! (Raw CPUs, without memory though.) Standard size reference points:
 * a hair's breadth is nominally 75μm.
 * Wales is about 2 x 10^22μm^2.
 
