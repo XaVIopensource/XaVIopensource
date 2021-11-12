@@ -2,7 +2,7 @@
 # XaVI: A 16-bit Processor for Analog ICs
 
 
-## Not Another One!
+## 1. Not Another One!
 
 Why do we need _another_ processor?
 * **For Analog/Mixed-Signal**: Many analog/mixed-signal chip providers have developed their own proprietary little processor for embedding into their chips. But there is no _standard_, _open_ 16-bit processor: the ARM or MIPS of the mixed-signal world. It needs to be little. Not so '8-bit' little that its code density adversely affects dynamic power consumption but not so '32-bit' big that its area adversely affects dynamic power consumption. 16 bits is _juuuust_ right - just a bit bigger than the ENOB of an ADC or DAC. Digi-people say an ARM Cortex-M is small, and that is true in 22nm [footnote]. But you don't want non-analog factors determining what process node you use for your analog chips.
@@ -20,10 +20,7 @@ Enter XaVI: XVI for 16 and 'a' for analog.
 * Wales is about 2 x 10^22μm^2.
 
 
-## Concepts
-
-
-### Instructions
+## 2. The Instructions Concept
 
 The CPU comprises:
 * `Fetch` unit
@@ -51,7 +48,7 @@ In principle, it could be 'Uncompressed' or `VLIW` instructions stored in memory
 * The `Control` unit provides clock, reset and low-power controls to the rest of the CPU.
 
 
-### Atoms, Ions and Hadrons
+## 2.1 Atoms, Ions and Hadrons
 
 The term 'atomic' refers to the idea that consecutive instructions must not be interrupted. 
 With that analogy, we may think of (Huffman) instructions as 'ions'; the binding of ions into atoms shall not be broken.
@@ -72,7 +69,7 @@ one Huffman fetch leads to two Uncompressed instructions.
 The `Fetch` unit gets Huffman ions from memory and decodes them to Uncompressed hadrons, handling atomicity to determine when interrupts can occur.
 
 
-### Instruction Sets
+## 2.2 Instruction Sets
 
 XaVI has a defined Uncompressed instruction set, defining the hadrons.
 
@@ -107,7 +104,7 @@ Another XaVI implementation may have no such need and would use some other Huffm
 (As long as the Uncompressed instruction set is sufficiently orthogonal, the compiler can produce consistent hadronic sequences that are also efficient.)
 
 
-### An Instruction Set / Compiler Strategy
+## 2.3 An Instruction Set / Compiler Strategy
 
 Given that the application is not defined before the compiler is produced, there is this strategy:
 1. Generate a representative test suite (of C code) for the anticipated _type_ of application.
@@ -137,8 +134,40 @@ It means that hardware development (step 5) and compiler development (step 7) is
 
 
 
-## Datapath
+# 3. Datapath
 
-To follow
+The capabilities of the `Datapath` unit define tha VLIW instructions and therefore also the Uncompressed instructions.
+The design of the unit will be bigger than most XaVI implementation, relying on synthesis to remove unused parts.
+
+
+** 3.1 The Register Set
+
+The framework provides for between 8 and 32 registers. Included within these are:
+* `R0` = `ZERO`: only ever returns zero.
+* `R1` = `SF`: Status Flags - a quite standard set comprising `Z`, `I`, `N`, `C` and `V` flags for zero, interrupt-enable, negative, carry and overflow.
+* `R2` = `PC`: Program Count
+* `R3` = `SP` stack pointer - actually just the same as higher registers. The compiler sould use any register above 2 for the stack pointer.
+
+
+** 3.2 Operations and Units
+
+The `Datapath` provides a 3-term RISC architecture: `c = func(a, b)` where a and b can be one of:
+* A register `Ra`, `Rb` ('register' addressing mode)
+* A value `n` ('immediate' addressing mode)
+* The contents of data memory `mem[n]` ('absolute' addressing mode)
+* The contents of data memory `mem[Ra+n]` or `mem[Rb+n]` ('indexed indirect' addressing mode)
+
+Note: the 16-bit Huffman instruction width means that Huffman instructions will generally be 2-term `b = func(a, b)` and with no 3-term instructions. 
+
+The destination may be one of:
+* Register `Rc`.
+* Memory write mem[c]
+
+The function may be derived from one of:
+* `AU1`: dyadic arithmetic unit, fundamentally providing `ADD` and derivative instructions
+* `LU2`: dyadic logic unit, fundamentally providing `AND`, `OR` and `XOR` or derivatives
+* `SU3`: unary shift unit, fundamentally providing `SL`, `ROL`, `SR` and `ROR` instructions
+* `XU4`: optional external custom unit. This is likely to provide multiply and multiply-accumulate instructions but the precise form can be customized.
+
 
 
