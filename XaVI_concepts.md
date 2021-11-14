@@ -2,25 +2,54 @@
 # XaVI: A 16-bit Processor for Analog ICs
 
 
-## Not Another One!
+# 1. Not Another One!
 
 Why do we need _another_ processor?
-* **For Analog/Mixed-Signal**: Many analog/mixed-signal chip providers have developed their own proprietary little processor for embedding into their chips. But there is no _standard_, _open_ 16-bit processor: the ARM or MIPS of the mixed-signal world. It needs to be little. Not so '8-bit' little that its code density adversely affects dynamic power consumption but not so '32-bit' big that its area adversely affects dynamic power consumption. 16 bits is _juuuust_ right - just a bit bigger than the ENOB of an ADC or DAC. Digi-people say an ARM Cortex-M is small, and that is true in 22nm [footnote]. But you don't want non-analog factors determining what process node you use for your analog chips.
+* **For Analog/Mixed-Signal**: Many analog/mixed-signal chip providers have developed their own proprietary little processor for embedding into their chips. But there is no _standard_, _open_ 16-bit processor: the ARM or MIPS of the mixed-signal world. It needs to be little. Not so '8-bit' little that its code density adversely affects dynamic power consumption but not so '32-bit' big that its area adversely affects dynamic power consumption. 16 bits is _juuuust_ right - just a bit bigger than the ENOB of an ADC or DAC. 
+* **Low Area**: Whilst 32-bit processors like ARM Cortex-M are making their way into the microcontroller market, running application software, they are still far too large for most analog chips. The aim is to push the programmability of processors into places that don't normally afford that programmability - which are generally not on small process nodes, for good reasons.
+* **Ultra-Low Power**: Low area means low leakage, but the objective is also to have minimal signal transitions to perform the computation in order to minimize dynamic power. There will be some particular characteristics that will make XaVI particularly good for some ultra-low power techniques.
+* **High code density** is critical in achieving low _system_ area and power. Being able to customize the instruction set takes this further.
 * **Open**: _Truly_ open source: without any commercial restrictions.
-* **Low Area**: seriously low. See above, and below. 
-* **Low Power**: seriously low. Low area = low leakage but the objective is to have minimal signal transitions to perform the computation in order to minimize power. There will be some particular characteristics that will make XaVI particularly good for some ultra-low power techniques.
-* **High code density** is part and parcel of low power above. Tweaked for the target application helps further.
 * **Compiler**: It needs to have a _proven_ C compiler. More precisely, there needs to be a way to write C and get machine code out of it - a subtle difference. 
 
 Enter XaVI: XVI for 16 and 'a' for analog.
 
 
-[footnote]: Silly Marketing... On a 22nm CMOS process, the processor should fit within an area less than 30μm x 30μm. That's over 1000 processors per square millimeter. At 2021 bleeding edge node 5nm, that's over a _billion_ processors per 12" wafer! (Raw CPUs, without memory though.) Standard size reference points:
-* a hair's breadth is nominally 75μm.
-* Wales is about 2 x 10^22μm^2.
+Below are 3 examples to provide some context applications.
+
+# 1.1. First example 'Programmable State Machines' System
+
+Two XaVI subsystems on an Analog IC:
+* One is needed for the receive part of the IC, for some specific dynamic control of the analog front end. The best control methods are dependent on the application and it is not possible to anticipate future requirements. The host downloads its code at power-up.  
+* Another 'Programmable State Machine' is needed for the transmitter. The host downloads a tailored program immediately prior to transmitting data.
+* In both cases, the CPUs are used to write to control registers with very specific timing sequences.
+* Each CPU has only 32 words of memory! These are primarily for instructions (XaVI's internal registers provide the necessary data space for these simple timer programs).
+* An external host processor downloads code to the subsystem at power-up and possibly during operation.
+* The host processor can thereby access those control/status registers, but the architecture allows faster, less noisy control than if directed from the host. And it is more flexible than if there were hard-wired circuits instead.
+* {Although the final 32-word programs may be hand-assembled, the C compiler accelerates development.}
 
 
-# 1. The Instructions Concept
+# 1.2. Second example 'Local Processor' System
+
+A Local processor on an Analog IC.
+* XaVI masters a SPI bus to which a serial EEPROM is connected. 
+* 2K words of memory, acting as an instruction cache (caching EEPROM code) and for local data space.
+* At start-up, parameters are transferred from EEPROM into control registers. At periodic intervals, diagnostics are performed to check correct operation. At periodic intervals, or as dictated by temperature changes, re-calibration firmware is executed.
+* The processor is also available for use in evaluation and production test.
+
+
+# 1.3. Third example Embedded System
+
+An embedded energy-scavenging XaVI must perform a lot of various DSP filtering on sense signals before a neural net classifier. It also manages the overall application in this TinyML system.
+* 64Kbyte Flash provides 48Kbytes data constants and 8Kwords of program space. 
+* 2Kword instruction cache.
+* 8Kbytes data RAM 
+* The XaVI hardware is modified to implement various specific sequences of instructions (such as a sum-of-products) as single instructions, in order to reduce memory accesses to save power.
+* Tightly-coupled hardware provides a multiply-accumulator with saturation and also ReLU (rectified linear) and SoftMax operations.
+
+
+
+# 2. The Instructions Concept
 
 The CPU comprises:
 * `Fetch` unit
@@ -48,7 +77,7 @@ In principle, it could be 'Uncompressed' or `VLIW` instructions stored in memory
 * The `Control` unit provides clock, reset and low-power controls to the rest of the CPU.
 
 
-## 1.1 Atoms, Ions and Hadrons
+## 2.1 Atoms, Ions and Hadrons
 
 The term 'atomic' refers to the idea that consecutive instructions must not be interrupted. 
 With that analogy, we may think of (Huffman) instructions as 'ions'; the binding of ions into atoms shall not be broken.
@@ -69,7 +98,7 @@ one Huffman fetch leads to two Uncompressed instructions.
 The `Fetch` unit gets Huffman ions from memory and decodes them to Uncompressed hadrons, handling atomicity to determine when interrupts can occur.
 
 
-## 1.2 Instruction Sets
+## 2.2 Instruction Sets
 
 XaVI has a defined Uncompressed instruction set, defining the hadrons.
 
@@ -105,7 +134,7 @@ Another XaVI implementation may have no such need and would use some other Huffm
 
 
 
-## 1.3 Atomic Instructions
+## 2.3 Atomic Instructions
 
 Many 'basic' instructions will actually be formed from multiple atomic hadrons. For example:
 - `PUSH Rx` will be implemented as `SUB #1, SP`; `MOVE Rx, (SP)`.
@@ -117,7 +146,7 @@ And the `Scheduler` also handles interrupts by inserting instructions: `PUSH SF`
 {Query: do we want the stack to move up or down memory? Answer: top down}
 
 
-## 1.4 An Instruction Set / Compiler Strategy
+## 2.4 An Instruction Set / Compiler Strategy
 
 Given that the application is not defined before the compiler is produced, there is this strategy:
 1. Generate a representative test suite (of C code) for the anticipated _type_ of application.
@@ -147,24 +176,51 @@ It means that hardware development (step 5) and compiler development (step 7) is
 
 
 
-# 2. Datapath
+# 3. Datapath
 
 The capabilities of the `Datapath` unit define tha VLIW instructions and therefore also the Uncompressed instructions.
-The design of the unit will be bigger than most XaVI implementation, relying on synthesis to remove unused parts.
+The design of the unit will be bigger than most actual XaVI implementations, relying on synthesis to remove unused parts.
+
+The minimum components for a low-area CPU will be:
+* registers,
+* an arithmetic unit,
+* a logic unit,
+* a shift unit, and
+* a data memory interface.
+Here, we add an expansion/extension/coprocessor interface (e.g. for a hardware multiplier).
+
+The arithmetic unit performs adds, subtracts and compares which clearly require the same underlying hardware. The other components of an 'Arithmetic Logic Unit' do not and so have been split. No hardware can be used twice within one hadron instruction cycle. Thus, `SUB (0x1234+Rx), Ry` is not possible as there are two tasks for the Arithmetic Unit here. The datapath should be structured to allow the most compute to be performed given the hardware resources. Thus, it should not preclude `AND (0x1234+Rx), Ry`, for example. On the other hand, the _possibility_ of having this instruction does not mean that the `Fetch` unit _will_ support this.
+
+The `Datapath` traverses are shown in the figures below.
+
+!!! Insert figures !!!
+
+To summarize valid arcs:
+* The destination is either `Rd` or data memory via `DWDATA`.
+* Immediate, register, indirect and absolute addressing modes can support `SHU` -> `LU` -> `AU` -> either `Rd` or `DWDATA`
+* Indexed addressing mode can only support `SHU` -> `LU` -> either `Rd` or `DWDATA`
+
+This has been arranged so that the `Datapath` is capable, in principle, of implementing the code:
+`    R1 = ((*R2 >> 5) & 0x7) + R3;`
+(i.e. peeling a 3-bit number out of a packed word in memory) in a single instruction.
+
+{Writing into packed words, e.g. packed control registers, would need read-modify-write atomic sequences. I presume that there is the freedom to allocate control bits sensibly whereas this luxury is not often possible in packed code/data from flash.}
 
 
-## 2.1 The Register Set
+## 3.1 The Register Set
 
 The framework provides for between 8 and 32 registers. Included within these are:
 * `R0` = `RZ`: is only ever zero.
-* `R1` = `SF`: Status Flags - a quite standard set comprising `Z`, `I`, `N`, `C` and `V` flags for zero, interrupt-enable, negative, carry and overflow.
-* `R2` = `PC`: Program Count
-* `R3` = `SP` stack pointer - actually just the same as higher registers. The compiler sould use any register above 2 for the stack pointer.
+* `R1` = `SP` stack pointer - actually just the same as other registers. The compiler sould use any register above 2 for the stack pointer.
+* `R30` = `PC`: Program Count
+* `R31` = `SF`: Status Flags - a quite standard set comprising `Z`, `I`, `N`, `C` and `V` flags for zero, interrupt-enable, negative, carry and overflow.
 
-The `PC` and `SP` size is parameterized from full size '15:1' down to '5:1' minimum. Note this is always an even byte address. Program and data memory are separate (XaVI has a Harvard architecture) but the memory may be unified beyond the Instruction Cache. 
+(Note: Huffman instructions are likely only to be able to access registers 0...7 with single-word instructions. Interaction with flags and `PC` is normally only via conditional branches.)
+
+The `PC` size is parameterized from full size '15:1' down to '5:1' minimum. Note this is always an even byte address. Program and data memory are separate (XaVI has a Harvard architecture) but the memory may be unified beyond the Instruction Cache. 
 
 
-## 2.2 Operations
+## 3.2 Operations
 
 The `Datapath` provides a 3-term RISC architecture: `c = func(a, b)` where a and b can be one of:
 * A register `Ra`, `Rb` ('register' addressing mode)
@@ -232,7 +288,7 @@ By convention, 'Jumps' are long absolut (example `MOVE aaaa, PC`) whereas 'branc
 
 
 
-## 2.3 Fences
+## 3.3 Fences
 
 The combinatorial path through `Datapath` might be long. For example, in executing a `MOVE (Rx+#nnnn), Ry` instruction:
 - Register Rx,
@@ -264,7 +320,7 @@ A single Uncompressed instruction cycle will likely be done over a number of pro
 
 
 
-# 3. Port Interface
+# 4. Port Interface
 
 The _basic_ port interface is as follows:
 
