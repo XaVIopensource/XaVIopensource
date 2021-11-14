@@ -191,9 +191,9 @@ Here, we add an expansion/extension/coprocessor interface (e.g. for a hardware m
 
 The arithmetic unit performs adds, subtracts and compares which clearly require the same underlying hardware. The other components of an 'Arithmetic Logic Unit' do not and so have been split. No hardware can be used twice within one hadron instruction cycle. Thus, `SUB (0x1234+Rx), Ry` is not possible as there are two tasks for the Arithmetic Unit here. The datapath should be structured to allow the most compute to be performed given the hardware resources. Thus, it should not preclude `AND (0x1234+Rx), Ry`, for example. On the other hand, the _possibility_ of having this instruction does not mean that the `Fetch` unit _will_ support this.
 
-The `Datapath` traverses are shown in the figures below.
+The `Datapath` traverses are shown in the figures below. {Shows what could be done. Actual may be simpler. Work in progress; may move away from Graphviz}
 
-!!! Insert figures !!!
+![A possible XaVI datapath](https://github.com/XaVIopensource/XaVIopensource/blob/main/images/datapath.jpg)
 
 To summarize valid arcs:
 * The destination is either `Rd` or data memory via `DWDATA`.
