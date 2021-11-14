@@ -1,0 +1,117 @@
+# Use https://dreampuf.github.io/GraphvizOnline to generate image
+
+
+# Work in progress!!!!!!!!!!!
+# Maybe: 
+# * AU on B-branch -> Possible DADDR
+# * SHU & LU on A-branch -> using DRDATA; possible DWDATA
+
+
+digraph G {
+node[shape=plaintext]
+S0 -> S1 -> S2 -> S3 ->S4 -> S5 -> S6 -> S8 -> S9 -> S10;
+
+node [shape=box]
+#compound=true;
+node [shape = record,height=.1];
+regbank[label = "Regs: |<pc>PC |<reg>R[1:n]|<flags>FLAGS"];
+ICACHE ;
+
+AMUX [shape=polygon,sides=4,distortion=.2];
+BMUX [shape=polygon,sides=4,distortion=.2];
+CMUX [shape=polygon,sides=4,distortion=.2];
+
+AUMUX [shape=polygon,sides=4,distortion=.2];
+SLMUX [shape=polygon,sides=4,distortion=.2];
+
+
+DMUX  [shape=polygon,sides=4,distortion=.2];
+EMUX  [shape=polygon,sides=4,distortion=.2];
+BEGIN [shape=point];
+
+
+
+# Registers ###########################
+BEGIN -> regbank:reg;
+regbank:reg -> AMUX [ltail=cluster4];
+regbank:reg -> BMUX [color="red"]; # ltail=cluster4,
+
+# Instruction (immediate) fetch ###########################
+regbank:pc -> ICACHE [label="paddr",color=red];
+ICACHE -> IR [label="prdata",color="red"];
+
+
+# Operand muxing ###########################
+
+AMUX_out [shape=point];
+BMUX_out [shape=point];
+AMUX -> AMUX_out -> CMUX;
+BMUX -> BMUX_out;
+BMUX_out -> SLMUX;
+CMUX_out -> SLMUX;
+BMUX_out -> AUMUX;
+CMUX_out -> AUMUX;
+
+AMUX_out -> AU:au_a;
+AMUX_out -> LU:au_a;
+SLMUX -> LU:lu_b;
+AUMUX    -> AU:au_b;
+
+IR -> CMUX;
+CONST -> CMUX;
+DMEM_out -> CMUX [label="drdata",color="red"];
+
+# Operand #1 path ###########################
+
+
+
+
+SHU[label = "<shu_body>SHU:|<shu_a>A"];
+LU[label = "<lu_body>LU:|<lu_a>A |<lu_o>|<lu_b>B"];
+AU[label = "<au_body>AU:|<au_a>A |<au_o>|<au_b>B"];
+CMUX_out [shape=point];
+SHU_out [shape=point];
+
+CMUX -> CMUX_out -> SHU:shu_a -> SHU_out -> LU:lu_a;
+CMUX_out -> SHU_out;
+SHU_out -> DMUX;
+
+# Operand #2 path ###########################
+
+
+LU:lu_a -> DMUX;
+AU:au_o -> DMUX;
+AU:au_o -> EMUX;
+
+# Results ###########################
+
+DMUX_out [shape=point];
+DMUX -> DMUX_out [color="red"];
+DMUX_out -> DMEM [label="dwdata",color=red];
+EMUX_out -> DMEM [label="daddr",color=red];
+
+
+
+
+BMUX_out -> EMUX;
+EMUX_out [shape=point];
+EMUX -> EMUX_out [color="red"];
+DMUX_out -> BEGIN [color="red"];
+
+
+DMEM_out [shape=point];
+DMEM -> DMEM_out [label="drdata",color=red];
+
+
+{ rank = same; S0; BEGIN; }
+{ rank = same; S1; regbank;  }
+{ rank = same; S2; ICACHE; AMUX; BMUX;}
+{ rank = same; S3; CONST; IR; DMEM_out; }
+{ rank = same; S4; CMUX;  }
+{ rank = same; S5; SHU}
+{ rank = same; S6; LU; AU}
+{ rank = same; S8; DMUX; }
+{ rank = same; S9; DMUX_out; EMUX_out;}
+{ rank = same; S10; DMEM;}
+
+}
