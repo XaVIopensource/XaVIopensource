@@ -6,7 +6,7 @@
 # Project Management #
 
 Tasks:
-* Concept documentation (datapath, bytes, )
+* Concept documentation (datapath, ...)
 * Compiler development proposal
 * Define 32-bit instruction set.
 * Create behavioural model of XaVI in C: Executing 32-bit instructions (or: 28-bit; every instruction is extended).
