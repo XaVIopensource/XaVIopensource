@@ -145,6 +145,8 @@ Many 'basic' instructions will actually be formed from multiple atomic hadrons. 
 And the `Scheduler` also handles interrupts by inserting instructions: `PUSH SF`, `PUSH PC`, `MOVE #0000, PC`.
 {Query: do we want the stack to move up or down memory? Answer: top down}
 
+Hadrons part of the same ion will obviously be atomic. A general indicator of whether something should be atomic is if an ion writes to `PC`, `SF` or `SP`. It may be that an instruction needs to be ftched before it can be determined whether a pending interupt can be accepted.
+
 
 ## 2.4 An Instruction Set / Compiler Strategy
 
