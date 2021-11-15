@@ -1,4 +1,27 @@
-// datapath.c, to #include
+
+/* ******************************************************
+                       XaVI C model
+
+This C model is to be used for constrained random verification of
+the XaVI CPU. It is the reference model for compiler generation.
+
+It is connected to 64Kwords of memory.
+Initially, these words are 32-bit Uncompressed instructions for P-bus instructions
+and 16-bit wide for D-bus transactions.
+The tests are constrained so that data transactions do not interfere with
+instruction reads.
+
+There is no modelling of interrupts.
+
+****************************************************** */
+
+#include <string.h>
+#include <stdlib.h>
+#include <stdio.h>
+
+// Locally-defined types: only these used...
+#define UINT unsigned 
+#define ULONG "unsigned long"
 
 // Status:
 // * Initial coding pass of datapath
@@ -6,12 +29,30 @@
 // Registers /////////////////////////////////////////
 
 UINT regs[31:0];
-UINT pc;
+UINT ir, pc;
 UINT flag_z, flag_n, flag_n, flag_c, flag_v;
 
 UINT au_carry_out;
 
+
+// Memory (unified)  /////////////////////////////////////////
+
+ULONG mem[65535:0]; // !!! Initially LONG not UNIT, until Huffman instructions can be handled
+UINT dread, dwrite, daddr, dwdata, drdata; // D-bus data bus
+UINT paddr, prdata; // P-bus program instruction bus (no need for 'pread' signal in this model)
+
+
 // Functions /////////////////////////////////////////
+
+// Peel off range of bits from data value.
+UINT bits(UNIT value, hi_bit, lo_bit){
+	// e.g. bits(data, 5, 3) is equivalent to Verilog data[5:3]
+	// e.g. bits(data, 4, 4) is equivalent to Verilog data[4]		
+	UINT mask;
+	mask = (1 << (hi_bit+1))-1; // masks off bits above hi_bit e.g. hi_bit=5 => mask=0x3F
+	result = (value & mask) >> lo_bit
+	return ( result );
+}
 
 UINT get_reg(ULONG sel) {
 	case(sel){
@@ -128,4 +169,59 @@ void execute_vliw(ULONG vliw, constant) {
 	// write_back needs to be used outside of this !!! Need to assign VLIW bits outside of this function
 	
 }
+
+
+/* decode_to_vliw: Converts Uncompressed Instructions to VLIW Instructions that control the datapath */
+void decode_to_vliw(){
+}
+
+/* Execute_Hadron: Executes one VLIW Instruction */
+void Execute_Hadron(){
+	decode_to_vliw();
+	execute_vliw(vliw, vliw_constant);
+	if (dread){
+		drdata = mem[daddr] & 0xFFFF; // Temp!!!: mem contains data longer than 16 bits!
+		// ... and pass through again...
+		execute_vliw(vliw, vliw_constant);
+	}	
+}
+
+
+/* Not yet!!!: print out assembly code for the IR instruction */
+void Disassemble_Hadron(){
+}
+
+
+/* Fetch_Execute: Fetches instruction and executes one or more hadrons as a result. */
+void Fetch_Execute(ULONG instruction){
+	// Initially, all instructions are only 1 hadron long
+	if (0){ // None here yet
+		Execute_Hadron(0x1234);
+		Execute_Hadron(0x5678);
+	} else { // default 1-hadron ion
+		Execute(instruction);
+	}
+	// Display what is being executed
+	Disassemble_Hadron(); 
+}
+
+/* test_run: Runs a tests for a particular number of instructions */
+void test_run(UNIT id, num_instructions){
+	for (iteration=0; iteration<NUM_ITERATIONS; iteration++){
+		IR = mem[PC];
+		Fetch_Execute(IR);
+	}
+}	
+	
+/* main: Runs a suite of tests. */
+void main(){
+	test_run(0, 1000); // !!! just a single test initially
+	retunr (0);
+}
+
+
+
+
+
+
 
