@@ -28,9 +28,11 @@ There is no modelling of interrupts.
 
 // Registers /////////////////////////////////////////
 
-UINT regs[31:0];
+UINT regs[31:0]; // !!! How to handle different configurations of XaVI e.g. with different no. or registers present
+// Note: regs[0] starts off as zero and can never get written to so stays as the 'zero register'
 UINT ir, pc;
-UINT flag_z, flag_n, flag_n, flag_c, flag_v;
+UINT flag_z, flag_n, flag_c, flag_v;
+UINT next_flag_z, next_flag_n, next_flag_c, next_flag_v;
 
 UINT au_carry_out;
 
@@ -96,13 +98,33 @@ UINT add_or_subtract(op_a, op_b, func_sel, carry_in, byte_mode);
     return( bits(result,15,0) );
 }
 
-// execute_vliw: /////////////////////////////////////////
+
+// Reset_Processor: /////////////////////////////////////////
+
+void Reset_Processor();
+	UINT i;
+	for i=(i=0; i<=31; i++){
+		regs[i] = 0;
+	}
+	pc = 0;
+	ir = 0;
+	flag_z = 0;
+	flag_n = 0; 
+	flag_c = 0; 
+	flag_v = 0;
+}
+
+
+// Execute_VLIW: /////////////////////////////////////////
 
 // drdata input depends of daddr output.
 // Therefore the function will need calling twice.
 // Note: it therefore does _not_ update any static variables.
-void execute_vliw(ULONG vliw, constant) {
+// Note: trying to write this code in the same way the Verilog code will be written, for comparison.
+void Execute_VLIW(ULONG vliw, constant, UINT pass) {
 	// actual vliw is formed from vliw (upper bits) and constant (16 bits)
+	// Pass #1: determine datapath state based on not knowing if there will be a read. (Read gets performed afterwards).
+	// Pass #2: determine datapath state based on knowing what the read data is. Can therefore update the state of registers/memory.
 
 	// Assigning VLIW bits ////////////////
 
@@ -119,8 +141,16 @@ void execute_vliw(ULONG vliw, constant) {
 	d_mux_sel    = bits(vliw, 21, 21); // Select for DWDATA
 	e_mux_sel    = bits(vliw, 23, 22); // Select for DADDR | reg
 	write_mem    = bits(vliw, 24, 24); // Enable write to memory (DWRITE)
-	write_req    = bits(vliw, 25, 25); // Enable write to register
-	reg_wr_sel   = bits(vliw, 26, 26); // Select register to write to
+	write_reg    = bits(vliw, 25, 25); // Enable write to register
+	reg_wr_sel   = bits(vliw, 30, 26); // Select register to write to
+	cond_sel     = bits(vliw, 33, 31); // Condition for branching (or others, in principle) !!! bits() won't work beyond 31 bits!
+
+	// Default: the flags don't change ////////////////
+	
+	flag_z = next_flag_z; 
+	flag_n = next_flag_n; 
+	flag_c = next_flag_c; 
+	flag_v = next_flag_n;
 
 	// Operand muxing ////////////////
 
@@ -129,7 +159,9 @@ void execute_vliw(ULONG vliw, constant) {
 	case(c_sel){
 		case 0  : c_mux = b_mux;
 		case 1  : c_mux = constant;
-		case 2  : c_mux = drdata; // resulting from a read
+		case 2  : // resulting from a read
+			if (byte_mode) {
+				c_mux = drdata; 
 		default : c_mux = INVALID;
 	}
 	shu_mux  = sl_mux_sel ? c_mux | b_mux;
@@ -167,33 +199,84 @@ void execute_vliw(ULONG vliw, constant) {
 	}
 	
 	// write_back needs to be used outside of this !!! Need to assign VLIW bits outside of this function
+	switch (cond_sel){
+		case 0:  conditional = (next_flag_z == 0); break; // Z=0
+		case 1:  conditional = (next_flag_z == 1); break; // Z=1
+		case 2:  conditional = (next_flag_n == 0); break; // N=0
+		case 3:  conditional = (next_flag_n == 1); break; // N=1
+		case 4:  conditional = (next_flag_c == 0); break; // C=0
+		case 5:  conditional = (next_flag_c == 1); break; // C=1
+		case 6:  conditional = (next_flag_v == 1); break; // V=0
+		case 7:  conditional = TRUE              ; break; // always
+	}
+		
+	if (pass==2 && write_mem) { // Maybe write to memory
+		if (byte_mode) {
+			mem[daddr]   = bits(d_mux_out, 7, 0); }
+		} else if { (daddr % 2)==0) // word write on word boundary
+			mem[daddr]   = bits(d_mux_out, 7, 0); 
+			mem[daddr+1] = bits(d_mux_out, 15, 8); 
+		} else {
+			printf("ERROR: XaVI exception: attempted word write to odd address\n");
+		}
+	}
 	
+	if (pass==2 && write_reg) { // Update PC and Status Flags
+		pc = pc + 2; // Default; will get overwritten below if reg_wr_sel -> PC and conditional is true
+		flag_z = next_flag_z; 
+		flag_n = next_flag_n; 
+		flag_c = next_flag_c; 
+		flag_v = next_flag_n;
+	}
+	
+	if (pass==2 && write_reg && conditional) { // Maybe write to a register
+		switch (reg_wr_sel){
+			case 0:  break; // Zero register always stays zero.
+			case 30: // Status flags.
+				flags_z = bit(e_mux_out, 0, 0); 
+				flags_n = bit(e_mux_out, 1, 1); 
+				flags_c = bit(e_mux_out, 2, 2); 
+				flags_v = bit(e_mux_out, 3, 3); break; 
+			case 31: // Zero register always stays zero.
+				pc = e_mux_out; break; 
+			default: regs[reg_wr_sel] = e_mux_out;
+		}
+	}
 }
 
 
 /* decode_to_vliw: Converts Uncompressed Instructions to VLIW Instructions that control the datapath */
-void decode_to_vliw(){
+void Decode_to_VLIW(){
+}
+
+
+/* Read_Memory: Executes one VLIW Instruction */
+void Read_Data_Memory() {
+	if (byte_mode){
+		drdata = (mem[daddr] & 0xFF);
+	} else if (!byte_mode && (daddr % 2==0)) { // word read on word boundary
+		drdata = (mem[daddr+1] & 0xFF) | (mem[daddr] & 0xFF);
+	} else if (!byte_mode && (daddr % 2==1)) { // word read not on word boundary
+		drdata = INVALID; // 
+		printf("ERROR: XaVI exception: attempted read word from odd address\n");
+	}
 }
 
 /* Execute_Hadron: Executes one VLIW Instruction */
 void Execute_Hadron(){
-	decode_to_vliw();
-	execute_vliw(vliw, vliw_constant);
-	if (dread){
-		drdata = mem[daddr] & 0xFFFF; // Temp!!!: mem contains data longer than 16 bits!
-		// ... and pass through again...
-		execute_vliw(vliw, vliw_constant);
-	}	
+	Decode_to_VLIW();
+	Execute_VLIW(vliw, vliw_constant, 1);
+	if (dread) { Read_Data_Memory(daddr); }
+	Execute_VLIW(vliw, vliw_constant, 2); // Second pass
 }
-
 
 /* Not yet!!!: print out assembly code for the IR instruction */
 void Disassemble_Hadron(){
 }
 
-
 /* Fetch_Execute: Fetches instruction and executes one or more hadrons as a result. */
-void Fetch_Execute(ULONG instruction){
+void Fetch_Execute(){
+	IR = (mem[PC+1])<<8 | (mem[PC]); // !!! Temp: 24 bits from odd byte (8 bits from even) to provide 32-bit Uncompressed instruction
 	// Initially, all instructions are only 1 hadron long
 	if (0){ // None here yet
 		Execute_Hadron(0x1234);
@@ -207,9 +290,9 @@ void Fetch_Execute(ULONG instruction){
 
 /* test_run: Runs a tests for a particular number of instructions */
 void test_run(UNIT id, num_instructions){
+	Reset_Processor();
 	for (iteration=0; iteration<NUM_ITERATIONS; iteration++){
-		IR = mem[PC];
-		Fetch_Execute(IR);
+		Fetch_Execute();
 	}
 }	
 	
