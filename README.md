@@ -4,11 +4,10 @@ XaVI = XVI + a:
 - a tiny ultra-low-power 16-bit processor 
 - for analog/mixed-signal applications.
 
-This will provide:
+This will provide, free for commercial as well as academic and personal use:
 - an open source Verilog RTL code for synthesis to FPGA or ASIC, and
 - an open source toolchain, as well as
-- an open source instruction set
-which will be available free for commercial as well as academic and personal use.
+- an open source instruction set.
 
 It's early days.
 
