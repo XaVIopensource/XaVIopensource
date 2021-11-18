@@ -244,50 +244,61 @@ The function may be derived from one of:
 
 Operations are generally available in both Byte and Word16 data widths.
 
-| Unary   | Operations |
-|---------|---|
-| `MOVE`  | Move (pass through) |
-| `RORC`  | Rotate right thru carry  |
-| `RORA`  | Rotate right, arithmetic  |
-| `SEXT`  | Sign-extend byte |
-| `SWPB`  | Swap bytes  |
+| Unary   | Operations                 | V | N | Z | C |
+|---------|----------------------------|---|---|---|---|
+| `MOVE`  | Move (pass through)        | * | * | * | * |
+| `ROLC`  | Rotate left thru carry     | * | * | * | * |
+| `RORC`  | Rotate right thru carry    | * | * | * | * |
+| `SHRA`  | Signed shift right, arithmetic    | (0) | * | * | * |
+| `SEXT`  | Sign-extend byte           | (0) | * | * | * |
+| `SWPB`  | Swap bytes                 | - | - | - | - |
 
 
-| Dyadic    | Operations |
-|-----------|---|
-| `ADD`     | Add |
-| `ADDC`    | Add with carry |
-| `SUB`     | Subtract |
-| `SUBC`    | Subtract with carry |
-| `CMP`     | Compare  (`SUB` without write-back) |
-| `AND`     | Logical AND |
-| `CLR`     | Clear (logical AND with 1's complement) |
-| `OR`      | Logical OR, equivalent to `SET` |
-| `XOR`     | Exclusive OR |
-| `BIT`     | Bit test (logical AND without write-back) |
+| Dyadic    | Operations                                | V | N | Z | C |
+|-----------|-------------------------------------------|---|---|---|---|
+| `ADD`     | Add                                       | * | * | * | * |
+| `ADDC`    | Add with carry                            | * | * | * | * |
+| `SUB`     | Subtract                                  | * | * | * | * |
+| `SUBC`    | Subtract with carry                       | * | * | * | * |
+| `CMP`     | Compare  (`SUB` without write-back)       | * | * | * | * |
+| `AND`     | Logical AND                               | 0 | * | * | * |
+| `OR`      | Logical OR, equivalent to `SET`           | * | * | * | * |
+| `XOR`     | Exclusive OR                              | * | * | * | * |
+| `BIT`     | Bit test (logical AND without write-back) | 0 | * | * | * |
+| `CLR`     | Clear bits (logical AND with 1's complement)   | - | - | - | - |
+| `SET`     | Set bits (logical OR)                          | - | - | - | - |
 
-Note: 
+Notes: 
+- There is no `ROLA` or `RORA`. `SHRA` shifts right with bit zero going into the carry.
+- `OR`: additional
+- { is the clearing of V for `AND` and `BIT` just a consequence of operation and not actually an exception?}
 - `ROLC  Rx` rotate left through carry can be achieved with `ADDC Rx, Rx`.
-- `SHAL Rx` shift arithmetic left can be achieved with `ADD  Rx, Rx`.
+- `SHLA Rx` shift arithmetic left can be achieved with `ADD  Rx, Rx`.
 - `SWPB` is the equivalent of `RORA` 8 times.
 
 {What about `SHR`, `SHLL` and `SHLA` arithmetic and logical shifts left and right? Is `RORA` really Arithmetic Shift Right? i.e. MSB stays the same. Could a sign-extend be achieved by `RORA.B Rx`; `ADDC.W Rx,Rx` (if a byte rotate sets all upper-byte bits to bit 7)?
 
 
-By convention, 'Jumps' are long absolut (example `MOVE aaaa, PC`) whereas 'branches' are short relative, conditional on the `SF` flags. But the Uncompressed instructions need not make the distinction. Relative addressing just performs an `ADD` using the `ALU`.
+By convention, 'Jumps' are long absolute (example `MOVE aaaa, PC`) whereas 'branches' are short relative, conditional on the `SF` flags. But the Uncompressed instructions need not make the distinction. Relative addressing just performs an `ADD` using the `ALU`.
 
 | Opcode | Condition |
-|--------|--|
-| `BN`Z  | `Z`=0 |
+|--------|-------|
+| `BNZ`  | `Z`=0 |
 | `BZ`   | `Z`=1 |
 | `BPOS` | `N`=0 |
 | `BNEG` | `N`=1 |
 | `BNC`  | `C`=0 |
 | `BC`   | `C`=1 |
-| `BGE`  | `N`=`V` |
-| `BL`   | not `N`=`V` |
+| `BGE`  | '>=' : `N`=`V` |
+| `BL`   | '<' : not `N`=`V` |
 | `BRA`  | always |
 
+Note:
+- `Z` zero flag set on bits 15:0 of the result being zero.
+- `N` negative flag set on bit 15 of the result being set (word) or bit 8 (byte).
+- `C` carry flag and `V` overflow flag: result is too big to fit into the required size of the result (word or byte). For `V`, the resultant sign is wrong.
+- `BNL`: additional
+- No 'Jump less' (`N`=0 and `Z`=0)
 
 
 ## 3.3 Fences
