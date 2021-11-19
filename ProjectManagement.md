@@ -1,9 +1,36 @@
 
 
-
-
-
 # Project Management #
+
+
+## Key Concepts ##
+
+### Of the hardware/system
+
+Allow the user to modify the hardware _without changing the core compiler_, in order to get:
+1. higher code density: more efficient instruction coding, hence lower power.
+2. higher performance: hence able to power off sooner.
+3. and critically: fewer instruction fetches from memory, hence lower power (by having aggregated common code sequences within the `Fetch` unit - i.e. splitting Huffman instructions into many hadrons)
+
+Provides a hardware platform with particular features for exploring hardware power miniization techniques:
+* Includes the use of layout-in-the-loop automated optimization of the hardware/software combination.
+
+
+### Of the compiler
+
+* Allow architectural tradeoffs to minimize power (e.g. a bottom-end system with only 4 general-purpose registers, no multiplier or barrel shifter).
+
+### Of the project organization
+
+Translation stepping-stone:
+* Reference point to provide a robust (verified) model and test suite for the start of compiler development.
+* Allow compiler development to start before the base (starting-point) Huffman instructions can be defined
+* Allow the concept of optimizable instruction sets to be evaluated early
+
+
+
+
+
 
 
 ## Details of Identified Tasks ##
