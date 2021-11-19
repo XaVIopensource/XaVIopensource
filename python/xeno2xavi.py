@@ -1,4 +1,11 @@
 
+
+A major rethink needed here:
+	* Need to work from Xeno code that has been _linked_.
+	* Work from binaries (or text of binaries) instead.
+	* (reuse/repurpose others' disassemblers https://gist.github.com/majek/8708232)
+	* New, longer flow: constrained-random code generation of _Xeno_ code, translated to XaVI, allowing comparison and verifying _whole_ chain of utilities.
+
 def xeno2xavi(in_filename="xeno_disassembly.txt", intermediate_filename="xavi_intermediate.asm", out_filename="xavi_translated.asm")
     ############################################
     # Pass no. 1: create label dictionary; do some basic conversions (handy midpoint for debugging)
