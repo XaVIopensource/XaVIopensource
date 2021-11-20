@@ -78,6 +78,10 @@ it would be possible to calculate VDD and VSS voltages at each mesh node (and th
 The results would be very much influenced by the choice of mesh resistance but guidance could be provided following comparisons with more accurate (commercial) tools.
 
 
+## Before Diving In Though: OpenSTA
+
+The long-term solution is likely best achieved by integrating with the OpenROAD projects STA tool, even if it is to extract load capacitances and transition times (that are calculated as part of STA) in order to get more accurate power and leakage results. See https://github.com/The-OpenROAD-Project/OpenSTA.
+
 
 ## Project Usage
 
