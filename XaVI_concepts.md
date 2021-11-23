@@ -50,6 +50,17 @@ An embedded energy-scavenging XaVI must perform a lot of various DSP filtering o
 * Tightly-coupled hardware provides a multiply-accumulator with saturation and also ReLU (rectified linear) and SoftMax operations.
 
 
+# 1.4. Block Diagram Example System
+
+The block digram shows a superset of another possible small system.
+* XaVI is executing code in iCache for 99% of time with occassional access to SPI flash. Code could be in RAM but this is not used.
+* In some implementations there may be no RAM at all.
+* A host can control XaVI and also write to CSR directly through the SPI interface. This includes controlling debug hardware for XaVI (halt/step and breakpoints).
+* XaVI will copy setup parameters from SPI flash to CSRs on startup and store diagnostic information into SPI flash.
+
+![A possible XaVI subsystem](https://github.com/XaVIopensource/XaVIopensource/blob/main/images/CPU_bus_and_memory.jpg)
+
+
 
 # 2. The Instructions Concept
 
