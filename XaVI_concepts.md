@@ -70,6 +70,8 @@ The CPU comprises:
 * `Datapath` unit
 * `Control` unit
 
+![`Fetch`, `Schedule`, `Decode`, `Datapath`](https://github.com/XaVIopensource/XaVIopensource/blob/main/images/Fetch_Schedule_Decode_Datapath.jpg)
+
 Processor instructions may be considered at 3 levels:
 * 'VLIW': between the `Decode` and `Datapath`.
 * 'Uncompressed': between `Fetch` and the `Decode`.
