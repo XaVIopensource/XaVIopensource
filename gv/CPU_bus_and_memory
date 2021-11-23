@@ -1,0 +1,20 @@
+# Use https://dreampuf.github.io/GraphvizOnline to generate image
+digraph G {
+  node[shape="box"];
+  CPU -> iCache [label="p-bus"];
+  CPU -> dDemux [label="d-bus"];
+  iCache -> FARmux;
+  iCache -> RAMmux;
+  dDemux -> FARmux;
+  dDemux -> RAMmux;
+  dDemux -> CSR;
+  SPI -> CSR;
+  SPI -> Host;
+  CPU -> CoPro -> CPU;
+  { rank = same; CoPro; CPU; }
+  RAMmux [label="", shape=polygon,sides=4,distortion=.2];
+  RAMmux -> RAM;
+  FARmux [label="", shape=polygon,sides=4,distortion=.2];
+  FARmux -> SPI -> "Far memory";
+  CSR -> CPU [label="debug"]
+}
