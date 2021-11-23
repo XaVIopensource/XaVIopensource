@@ -1,0 +1,16 @@
+# Use https://dreampuf.github.io/GraphvizOnline to generate image
+digraph G {
+  node[shape="box"];
+  FETCH -> "instruction cache" [label="PREAD, PADDR"];
+  "instruction cache" -> FETCH [label="PRDATA"];
+  { rank=same; "instruction cache"; FETCH; }
+  FETCH -> SCHEDULE [label=" Huffman"];
+  IRQ -> SCHEDULE;
+  SCHEDULE -> DECODE [label=" Uncompressed"];
+  { rank=same; SCHEDULE; IRQ; }
+  DECODE -> DATAPATH [label=" VLIW"];
+  "data memory\n decode/demux" -> DATAPATH [label="DRDATA"];
+  DATAPATH -> "data memory\n decode/demux" [label="DREAD, DADDR"];
+  DATAPATH -> "data memory\n decode/demux" [label="DWRITE, DWDATA"];
+  { rank=same; "data memory\n decode/demux"; DATAPATH; }
+}
