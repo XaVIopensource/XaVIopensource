@@ -5,14 +5,14 @@
 # 1. Not Another One!
 
 Why do we need _another_ processor?
-* **For Analog/Mixed-Signal**: Many analog/mixed-signal chip providers have developed their own proprietary little processor for embedding into their chips. But there is no _standard_, _open_ 16-bit processor: the ARM or MIPS of the mixed-signal world. It needs to be little. Not so '8-bit' little that its code density adversely affects dynamic power consumption but not so '32-bit' big that its area adversely affects dynamic power consumption. 16 bits is _juuuust_ right - just a bit bigger than the ENOB of an ADC or DAC. 
+* **For Analog/Mixed-Signal**: Many analog/mixed-signal chip providers have developed their own proprietary little processor for embedding into their chips. But there is no _standard_, _open_ 16-bit processor: the ARM or MIPS of the mixed-signal world. It needs to be little. Not so '8-bit' little that its code density adversely affects dynamic power consumption but not so '32-bit' big that its area adversely affects dynamic power consumption. 16 bits is _just_ right - just a bit bigger than the ENOB of an ADC or DAC. 
 * **Low Area**: Whilst 32-bit processors like ARM Cortex-M are making their way into the microcontroller market, running application software, they are still far too large for most analog chips. The aim is to push the programmability of processors into places that don't normally afford that programmability - which are generally not on small process nodes, for good reasons.
 * **Ultra-Low Power**: Low area means low leakage, but the objective is also to have minimal signal transitions to perform the computation in order to minimize dynamic power. There will be some particular characteristics that will make XaVI particularly good for some ultra-low power techniques.
 * **High code density** is critical in achieving low _system_ area and power. Being able to customize the instruction set takes this further.
-* **Open**: _Truly_ open source: without any commercial restrictions.
+* **Open**: without most restrictions on commercial use. This includes not needing to acknowledge the presence of XaVI CPUs to customers where the embedding is from them.
 * **Compiler**: It needs to have a _proven_ C compiler. More precisely, there needs to be a way to write C and get machine code out of it - a subtle difference. 
 
-Enter XaVI: XVI for 16 and 'a' for analog.
+Enter XaVI: XVI for 16, and the 'a' can stand for analog.
 
 
 Below are 3 examples to provide some context applications.
@@ -26,6 +26,7 @@ Two XaVI subsystems on an Analog IC:
 * Each CPU has only 32 words of memory! These are primarily for instructions (XaVI's internal registers provide the necessary data space for these simple timer programs).
 * An external host processor downloads code to the subsystem at power-up and possibly during operation.
 * The host processor can thereby access those control/status registers, but the architecture allows faster, less noisy control than if directed from the host. And it is more flexible than if there were hard-wired circuits instead.
+* Both processors have the same customization: a 'decrement Rx and jump-relative if non-zero' instruction that  can be used to jump back to self in a low-power state. This is effectively a sleep/'wait for' timer but uses the resources of the CPU (i.e. adder and registers).
 * {Although the final 32-word programs may be hand-assembled, the C compiler accelerates development.}
 
 
@@ -36,6 +37,7 @@ A Local processor on an Analog IC.
 * 2K words of memory, acting as an instruction cache (caching EEPROM code) and for local data space.
 * At start-up, parameters are transferred from EEPROM into control registers. At periodic intervals, diagnostics are performed to check correct operation. At periodic intervals, or as dictated by temperature changes, re-calibration firmware is executed.
 * The processor is also available for use in evaluation and production test.
+* Hardware outside of XaVI can compare 2 registers with the program count and halt the CPU on a match. This can provide the minimal debug logic with 2 hardware breakpoints. In this case, those registers are obviously not usable by the compiler. After most code has been developed and debugged, the user can choose to sacrific these breakpoints for greater code efficiency.
 
 
 # 1.3. Third example Embedded System
@@ -193,7 +195,7 @@ Here, we add an expansion/extension/coprocessor interface (e.g. for a hardware m
 
 The arithmetic unit performs adds, subtracts and compares which clearly require the same underlying hardware. The other components of an 'Arithmetic Logic Unit' do not and so have been split. No hardware can be used twice within one hadron instruction cycle. Thus, `SUB (0x1234+Rx), Ry` is not possible as there are two tasks for the Arithmetic Unit here. The datapath should be structured to allow the most compute to be performed given the hardware resources. Thus, it should not preclude `AND (0x1234+Rx), Ry`, for example. On the other hand, the _possibility_ of having this instruction does not mean that the `Fetch` unit _will_ support this.
 
-The `Datapath` traverses are shown in the figures below. {Shows what could be done. Actual may be simpler. Work in progress; may move away from Graphviz}
+The `Datapath` traverses are shown in the figures below. {Shows what could be done. Actual may be simpler. Work in progress; will move away from Graphviz!}
 
 ![A possible XaVI datapath](https://github.com/XaVIopensource/XaVIopensource/blob/main/images/datapath.jpg)
 
