@@ -29,6 +29,7 @@ Between a fixed C compiler and the Datapath hardware, the software and hardware 
 The minimal `Datapath` comprises just an adder, a shifter and a logic unit. The shift unit can be configured for single-bit shifting or barrel shifting. A multiplier can be provided through an expansion interface. The register bank of configurable size (compiler switch). The compiler can be configured accordingly: for the number of registers and presence/absence of barrel shifter and multiplier.
 
 
+
 Below are 3 examples to provide some context applications.
 
 # 1.2. First example 'Programmable State Machines' System
