@@ -120,6 +120,11 @@ What other switches need to be added to the compiler, to allow it to be used wit
 produce a new Huffman ISA.
 
 
+### POWER: Power Analysis
+
+Develop a means of analyzing power consumption: See OpenPyPE in PowerEstimator.md.
+
+
 ### HCUSTOM: Hardware Customization 
 
 * 'Search' lowest power architecture through varying parameters: (i) instruction compression schemes, at varying levels of hardware required to decompress, (ii) different 'fence' types at various parts of the `Datapath`, (iii) different number of registers.
