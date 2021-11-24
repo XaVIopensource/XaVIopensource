@@ -90,8 +90,7 @@ Then:
 
 ### ICUSTOM: ISA Customization 
 
-The Innovative part
-Putting it altogether
+The Innovative part, putting it altogether
 
 Design a methodology to 
 * ... use the analysis results from task ISA (using a new set of representative code)
@@ -112,7 +111,7 @@ Only when the model and translater have been verified (and the general concept h
 
 * Assumed LLVM compiler development, just to 32-bit Uncompressed instructions.
 * Inputs: (i) model, from MODEL task, and (ii) binaries from VER task.
-* Compile switches: (i) no. registers, (ii) existence of hardware multiplier, (iii) existence of barrel shifter.
+* Compile switches: (i) no. registers, (ii) existence of hardware multiplier, (iii) existence of barrel shifter (iv) _preference_ to restrict usage to a subset of registers (to aid compression).
 
 Initially, this task is just to achieve the above. But...
 
@@ -123,9 +122,8 @@ produce a new Huffman ISA.
 
 ### HCUSTOM: Hardware Customization 
 
-* 'Search' lowest power architecture...
-* Different 'fence' types at various parts of the `Datapath`.
-* Produce layouts of hardware, using OpenROAD. Analyze power.
-
+* 'Search' lowest power architecture through varying parameters: (i) instruction compression schemes, at varying levels of hardware required to decompress, (ii) different 'fence' types at various parts of the `Datapath`, (iii) different number of registers.
+* Automated processes from selection of parameters, through running the test suite and through hardware synthesis, layout and power analysis (using OpenROAD) to power consumption 'cost' results.
+* Closing the loop: automated optimization  e.g. using Python scipy.optimize.minimize
 
 
