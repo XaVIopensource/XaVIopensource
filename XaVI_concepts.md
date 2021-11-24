@@ -10,14 +10,28 @@ Why do we need _another_ processor?
 * **Ultra-Low Power**: Low area means low leakage, but the objective is also to have minimal signal transitions to perform the computation in order to minimize dynamic power. There will be some particular characteristics that will make XaVI particularly good for some ultra-low power techniques.
 * **High code density** is critical in achieving low _system_ area and power. Being able to customize the instruction set takes this further.
 * **Open**: without most restrictions on commercial use. This includes not needing to acknowledge the presence of XaVI CPUs to customers where the embedding is from them.
-* **Compiler**: It needs to have a _proven_ C compiler. More precisely, there needs to be a way to write C and get machine code out of it - a subtle difference. 
+* **Free**: free from the risk of clone claims from legal heavyweights, regardless of their legitimacy.
+* **Compiler**: It needs to have a proven C compiler. 
 
 Enter XaVI: XVI for 16, and the 'a' can stand for analog.
 
 
+# 1.1. Concept Summary
+
+The basic approaches to achieve low area and power are to have:
+* Minimal datapath hardware, as a combinatorial path that can be optimized in synthesis and layout for the user-specific application to reduce unnecessary signal transitions.
+* User-defined compression of the instruction set to achieve maximum code density for the user-specific application.
+
+Between a fixed C compiler and the Datapath hardware, the software and hardware can be changed, optimized to the application:
+* Software: translation (Huffman coding) of (perhaps multiple) 32-bit compiler instructions to the (often multiple) 16-bit instructions stored in memory.
+* Hardware: decompressing the 16-bit instructions to (perhaps multiple cycles of) Datapath processing cycles.
+
+The minimal `Datapath` comprises just an adder, a shifter and a logic unit. The shift unit can be configured for single-bit shifting or barrel shifting. A multiplier can be provided through an expansion interface. The register bank of configurable size (compiler switch). The compiler can be configured accordingly: for the number of registers and presence/absence of barrel shifter and multiplier.
+
+
 Below are 3 examples to provide some context applications.
 
-# 1.1. First example 'Programmable State Machines' System
+# 1.2. First example 'Programmable State Machines' System
 
 Two XaVI subsystems on an Analog IC:
 * One is needed for the receive part of the IC, for some specific dynamic control of the analog front end. The best control methods are dependent on the application and it is not possible to anticipate future requirements. The host downloads its code at power-up.  
@@ -30,7 +44,7 @@ Two XaVI subsystems on an Analog IC:
 * {Although the final 32-word programs may be hand-assembled, the C compiler accelerates development.}
 
 
-# 1.2. Second example 'Local Processor' System
+# 1.3. Second example 'Local Processor' System
 
 A Local processor on an Analog IC.
 * XaVI masters a SPI bus to which a serial EEPROM is connected. 
@@ -40,7 +54,7 @@ A Local processor on an Analog IC.
 * Hardware outside of XaVI can compare 2 registers with the program count and halt the CPU on a match. This can provide the minimal debug logic with 2 hardware breakpoints. In this case, those registers are obviously not usable by the compiler. After most code has been developed and debugged, the user can choose to sacrific these breakpoints for greater code efficiency.
 
 
-# 1.3. Third example Embedded System
+# 1.4. Third example Embedded System
 
 An embedded energy-scavenging XaVI must perform a lot of various DSP filtering on sense signals before a neural net classifier. It also manages the overall application in this TinyML system.
 * 64Kbyte Flash provides 48Kbytes data constants and 8Kwords of program space. 
@@ -50,7 +64,7 @@ An embedded energy-scavenging XaVI must perform a lot of various DSP filtering o
 * Tightly-coupled hardware provides a multiply-accumulator with saturation and also ReLU (rectified linear) and SoftMax operations.
 
 
-# 1.4. Block Diagram Example System
+# 1.5. Block Diagram Example System
 
 The block digram shows a superset of another possible small system.
 * XaVI is executing code in iCache for 99% of time with occassional access to SPI flash. Code could be in RAM but this is not used.
