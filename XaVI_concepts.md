@@ -9,7 +9,7 @@ Why do we need _another_ processor?
 * **Low Area**: Whilst 32-bit processors like ARM Cortex-M are making their way into the microcontroller market, running application software, they are still far too large for most analog chips. The aim is to push the programmability of processors into places that don't normally afford that programmability - which are generally not on small process nodes, for good reasons.
 * **Ultra-Low Power**: Low area means low leakage, but the objective is also to have minimal signal transitions to perform the computation in order to minimize dynamic power. There will be some particular characteristics that will make XaVI particularly good for some ultra-low power techniques.
 * **High code density** is critical in achieving low _system_ area and power. Being able to customize the instruction set takes this further.
-* **Open**: without most restrictions on commercial use. This includes not needing to acknowledge the presence of XaVI CPUs to customers where the embedding is from them.
+* **Open**: without most restrictions on commercial use. This includes not needing to acknowledge the presence of XaVI CPUs to customers where their embedding is hidden from them.
 * **Free**: free from the risk of clone claims from legal heavyweights, regardless of their legitimacy.
 * **Compiler**: It needs to have a proven C compiler. 
 
