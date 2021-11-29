@@ -389,3 +389,141 @@ The Debug interface is part of the system outside of the core XaVI processor. Ho
 The `Control` unit handles starting and stopping (and single-stepping) of the processor. If the hardware breakpoint is enabled, the `Control` unit should halt execution when `BRKPT` is asserted, indicating that the `PC` has reached the hardware breakpoint. Code used during debugging must be generated from a compiler that does not use the top register. The compiler configuration could be modified for final code generation for a more optimum execution. This means that a register is not 'wasted' in such an area-critical design.
 
 
+
+# 5. Compiler Specification
+
+## 5.1 Compiler Switches
+
+* Number of registers (counted 1...n where n<29 since `R0`=0, `R31`=`SF` and `R30`=`PC`. Register n+1 is reserved as an intermediate holding register for atomic instructions that the compiler does not need to be aware of). Typically, n=7.
+* Presence of a hardware multiplier.
+* Presence of a barrel shifter {or the linker can just detect multiple 
+* Maximum relative jump size.
+
+
+## 5.2 Documentation
+
+The compiler will generate code for uncompressed hadrons. The linker will then aggregate into Huffman instructions. The compiler code generation (sequence of hadrons) will need to be made availlable to users in a way not normally done for compilers, in order for hardware designers to know how to aggregate hadrons into single or atomic instructions. It needs to be documented where to look in the compiler source code so that designers can engineer rather than reverse-engineer solutions. 
+
+For example, instead of generating a `PUSH R1`, it will generate `MOVE R1, 0(SP)` followed by `SUB #1, SP`. For `PUSH R1, R3, R4, R7` it would generate `MOVE R1, 0(SP); MOVE R3, -1(SP); MOVE R4, -2(SP); MOVE R7, -3(SP); SUB #4, SP`. The linker would then have the option of creating a 'Push multiple' from this.
+
+
+# 6. Application-Specific Instruction Coding
+
+The following gives some indication of how instructions might be encoded.
+
+
+But first look at some very good 16-bit instruction sets for reference...
+
+## MSP430
+
+Key to the summary tables:
+* '-': 0 or 1 to encode the instruction
+* 'o': operand selection
+* 'n': number (immediate value, offset, absolute or relative address)
+* 'r': register identifier (source, destination)
+* 'a': addressing mode selection
+* 'f': flags (indication which selection of registers)
+* 'x': extra, such as byte/word selection
+
+
+## MSP430
+
+Instruction set summary:
+* https://www.ti.com/sc/docs/products/micro/msp430/userguid/as_5.pdf
+* https://phas.ubc.ca/~michal/phys319/MSP430Reference-RyansEdit.pdf
+
+Highly orthogonal, with just three types of instruction...
+
+| Type | Description    | 15 | 14 | 13 | 12 | 11 | 10 | 9 | 8 | 7 | 6 | 5 | 4 | 3 | 2 | 1 | 0 |
+|------|----------------|----|----|----|----|----|----|---|---|---|---|---|---|---|---|---|---|
+| I    | Single-operand | -  | -  | -  | -  | -  | -  | o | o | o | x | a | a | r | r | r | r |
+| II   | Two-operand    | -  | -  | -  | c  | c  | c  | n | n | n | n | n | n | n | n | n | n |
+| III  | Condition jump | o  | o  | o  | o  | r  | r  | r | r | a | x | a | a | r | r | r | r |
+
+using these addressing modes...
+
+| Mode            | 2 | 1 | 0 |
+|-----------------|---|---|---|
+| OP Rs, Rd       | 0 | 0 | 0 |
+| OP n(Rs), Rd    | 0 | 0 | 1 |
+| OP a, Rd        | 0 | 1 | 0 |
+| OP &a, Rd       | 0 | 1 | 1 |
+| OP Rs, m(Rd)    | 1 | 0 | 0 |
+| OP n(Rs), m(Rd) | 1 | 0 | 1 |
+| OP a, m(Rd)     | 1 | 1 | 0 |
+| OP &a, m(Rd)    | 1 | 1 | 1 |
+
+
+
+## MSP430X
+
+TBD: Differences w.r.t MSP430
+
+
+## ARM Thumb
+
+Table derived from https://developer.arm.com/documentation/ddi0210/c/Introduction/Instruction-set-summary/Thumb-instruction-summary.
+
+More irregular, with the addressing mode determined by type...
+
+
+| Type | Description                   | 15 | 14 | 13 | 12 | 11 | 10 | 9 | 8 | 7 | 6 | 5 | 4 | 3 | 2 | 1 | 0 |
+|------|-------------------------------|----|----|----|----|----|----|---|---|---|---|---|---|---|---|---|---|
+| 1    | MOVE shifted register         | -  | -  | -  | o  | o  | n  | n | n | n | n | r | r | r | r | r | r |
+| 2    | ADD/SUB                       | -  | -  | -  | -  | -  | -  | o | r | r | r | r | r | r | r | r | r |
+| 3    | MOVE, CMP, ADD, SUB immediate | -  | -  | -  | o  | o  | r  | r | r | n | n | n | n | n | n | n | n |
+| 4    | ALU                           | -  | -  | -  | -  | -  | -  | o | o | o | r | r | r | r | r | r | r |
+| 5    | High register                 | -  | -  | -  | -  | -  | -  | o | o | x | x | r | r | r | r | r | r |
+| 6    | PC-relative load              | -  | -  | -  | -  | -  | r  | r | r | n | n | n | n | n | n | n | n |
+| 7    | LD/ST with relative offset    | -  | -  | -  | -  | o  | x  | - | n | n | n | r | r | r | r | r | r |
+| 8    | LD/ST byte/half-word          | -  | -  | -  | -  | o  | x  | - | n | n | n | r | r | r | r | r | r |
+| 9    | LD/ST with immediate offset   | -  | -  | -  | x  | o  | n  | n | n | n | n | r | r | r | r | r | r |
+| 10   | LD/ST half-word               | -  | -  | -  | -  | o  | n  | n | n | n | n | r | r | r | r | r | r |
+| 11   | LD/ST stack pointer relative  | -  | -  | -  | -  | o  | r  | r | r | n | n | n | n | n | n | n | n |
+| 12   | LD address                    | -  | -  | -  | -  | r  | r  | r | r | n | n | n | n | n | n | n | n |
+| 13   | ADD offset to stack pointer   | -  | -  | -  | -  | -  | -  | - | - | x | n | n | n | n | n | n | n |
+| 14   | PUSH/POP                      | -  | -  | -  | -  | o  | -  | - | r | f | f | f | f | f | f | f | f |
+| 15   | LD/ST multiple                | -  | -  | -  | -  | o  | r  | r | r | f | f | f | f | f | f | f | f |
+| 16   | Conditional branch            | -  | -  | -  | -  | -  | c  | c | c | n | n | n | n | n | n | n | n |
+| 17   | Software interrupt            | -  | -  | -  | -  | -  | -  | - | - | n | n | n | n | n | n | n | n |
+| 18   | Unconditional branch          | -  | -  | -  | -  | -  | n  | n | n | n | n | n | n | n | n | n | n |
+| 19   | Long branch with link         | -  | -  | -  | -  | x  | n  | n | n | n | n | n | n | n | n | n | n |
+
+
+
+## ARM Thumb2
+
+TBD: Differences w.r.t MSP430
+
+
+
+
+## XaVI hadrons, compared with MSP430 and ARM
+
+(Recap on'Hadrons': uncompressed instructions executed on the `Datapath` unit. Multiple such instructions may be derived from a single compressed instruction.)
+
+* Uncompressed instructions are orthogonal, like MSP430 (simpler coding - because it is already part-decoded!).
+* PUSH, POP, JSR, RET are all split into hadrons as would load/store multiples be.
+
+
+## Example XaVI compression
+
+This sets out the way instructions may be compression in an imagined implementation.
+
+(Note: 'Extend' means extending a 16-bit instruction into a 28-bit instruction.)
+
+The instruction set would be mainly based on the MSP430, but with the following able to be performed more efficiently (i.e. higher instruction compression):
+
+1. Single-word immediates, perhaps covering all integers -2...16 plus 0xF0, 0x1F, 0x3F, 0x7F, 0x80.
+2. R8 (ordinarily needing to be accessed through extension) being used for three-operand instructions for more complex atomic instructions, e.g.
+3. Read-modify-writes to packed registers, e.g. atomic `AND &0xFACE, ASL 3, 0x3F, R8` then `OR R2, R8, SHL 3, &0xFACE`, achieving a setting of register bits [8:3]; MOVE R8, &0xFACE
+4. Saturated ADD instructions.
+
+And to achieve these extra encodings, the following will need to be sacrificed (reduced compression):
+1. Need to extend to access `PC` and `SF` (flags) registers.
+2. Some two-operand instructions relegated for some addressing modes (ADDC, SUBC).
+3. Sticky `SF` flag to set byte selection.
+4. Reduced range of relative jumps.
+
+
+
