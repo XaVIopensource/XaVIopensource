@@ -1,6 +1,7 @@
 
 # XaVI: A 16-bit Processor for Analog ICs
 
+{Wikipedia-like editorial warning: this article is starting to get a bit rambling and needs tidying up eventually, when the concepts start to settle.}
 
 # 1. Not Another One!
 
