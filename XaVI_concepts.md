@@ -391,9 +391,23 @@ The `Control` unit handles starting and stopping (and single-stepping) of the pr
 
 
 
-# 5. Compiler Specification
+# 5. Compiler Specification and Implementation
 
-## 5.1 Compiler Switches
+## 5.1 General Approach
+
+For the compiler, either LLVM or GCC could be used. The linker is going to be non-standard though because it needs to handle the custom instruction compression. Here is a proposal:
+1. LLVM compiler to hadronic uncompressed 32-bit instructions.
+2. LLVM-LD linker to produce (very inefficient) executables, for linking 'large' programs and for compiler verification.
+3. Custom linker in Python is a multi-pass assembler (more passes than necessary, but this allows user customization between the steps)...
+4. Concatenate all code into fixed order. All labels have are uniquified (prefixed with the function name or a shortform).
+5. Custom compression into application-specific encoding.
+6. Building up a dictionary of labels.
+7. Producing code with correct absolute and relative addressing.
+8. If relative addressing range is too large, change to hops around absolute jumps and go back to step 6.
+9. Generate 'binary' (.elf).
+
+
+## 5.2 Compiler Switches
 
 * Number of registers (counted 1...n where n<29 since `R0`=0, `R31`=`SF` and `R30`=`PC`. Register n+1 is reserved as an intermediate holding register for atomic instructions that the compiler does not need to be aware of). Typically, n=7.
 * Presence of a hardware multiplier.
@@ -401,7 +415,7 @@ The `Control` unit handles starting and stopping (and single-stepping) of the pr
 * Maximum relative jump size.
 
 
-## 5.2 Documentation
+## 5.3 Documentation
 
 The compiler will generate code for uncompressed hadrons. The linker will then aggregate into Huffman instructions. The compiler code generation (sequence of hadrons) will need to be made availlable to users in a way not normally done for compilers, in order for hardware designers to know how to aggregate hadrons into single or atomic instructions. It needs to be documented where to look in the compiler source code so that designers can engineer rather than reverse-engineer solutions. 
 
