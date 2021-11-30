@@ -542,3 +542,13 @@ And to achieve these extra encodings, the following will need to be sacrificed (
 
 
 
+## Copyright
+
+Copyright (c) 2021 Neil Howard <xaviopensource@aol.com>.
+All Rights Reserved.
+GPLv3 license https://www.gnu.org/licenses/gpl-3.0.en.html
+(The licence is expected to become less restrictive at some point in the future.)
+
+ 
+
+
