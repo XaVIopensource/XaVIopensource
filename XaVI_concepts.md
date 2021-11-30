@@ -108,28 +108,64 @@ In principle, it could be 'Uncompressed' or `VLIW` instructions stored in memory
 * The `Control` unit provides clock, reset and low-power controls to the rest of the CPU.
 
 
-## 2.1 Atoms, Ions and Hadrons
+## 2.1 Atoms, Ions, Hadrons and Quarks
 
-The term 'atomic' refers to the idea that consecutive instructions must not be interrupted. 
-With that analogy, we may think of (Huffman) instructions as 'ions'; the binding of ions into atoms shall not be broken.
-Within the `Fetch` unit, ionic instructions may be broken down into more than one Uncompressed instruction. 
-Taking that analogy further, these Uncompressed instruction are 'hadrons' (protons and neutrons). 
+The term 'atomic' refers to the idea that consecutive CPU instructions are inseparable. The CPU cannot be interrupted between these instructions.
 
-Instruction execution is like a temporal stream of unbound ions. 
-Most of the ions are Hydrogen (a single proton): one Huffman fetch leads to one Uncompressed instruction. Example: `ADD (R1), R2`
-Occasionally, there may be some Deuterium (1 proton + 1 neutron: one Huffman fetch leads to two Uncompressed instructions) or heavier ions within the stream of Hydrogen. 
-Example: `ADD (R1+), R2` gets broken down into `ADD (R1), R2` and `INC R1`==`ADD #1, R1`. 
-The `Datapath` does not have the hardware resources to do this in a single hadron.
-Occasionally, there may be some molecule in the atomic operation: H2 (2 protons); the chemical bonds make the two ions inseparate; a hardware interrupt will have to wait. 
-Example: a read-modify-write is `ADD (R1), R2`; `MOVE R2, (R1)`. This chemical bonding is unrelated to the nuclear binding of hadrons. 
-There could be both chemical and nuclear: a molecule of Hydrogen plus Deuterium: `ADD (R1), R2`; `MOVE R2, (R1)`; `INC R1`. 
-You get the idea: the fundamental execution 'primitive' is the hadron.
-one Huffman fetch leads to two Uncompressed instructions.
+I'll expand on this analogy. First, some physics:
+* Molecules are made out of atoms that are bound together (reminder, irrelevant here: ionically or covalently).
+* Atoms that are unbound are _ions_ (reminder, irrelevant here: which will have some +ve or -ve charge)
+* Ions are mainly made up of _hadrons_ (reminder, irrelevant here: protons and neutrons; electrons are tiny in comparison)
+* Hadrons are mainly made up of _quarks_ (irrelevant here: such as the 'Up', 'Down' and 'Charm' quarks, bound together by _gluon_ glue.)
+
+And now the analogy:
+* The `Datapath` of a CPU has some separate components. For XaVI: `RU`, `MU`, `AU`, `LU`, `SU`, `KU` and `CU` register, memory, arithmetic, logic, shift, konstant and conditional units, involved in instructions such as `MOVE`, `STORE`, `ADD`/`SUB`, `AND`/`XOR`, `LSR`/`ROLC`, `LD #1, R2` and `BRNZ` respectively.
+* Operations on these units are called _quarks_. They are the smallest processing operation.
+* A number of _quarks_ combine to form a _hadron_: the smallest possible instruction, performed within 1 processing clock cycle. An important constraint: there cannot be more than 1 type of quark in any hadron. You cannot use the `AU` hardware to do more than one thing at a time, for example. A hypothetical hadronic instruction such as `AND.NZ #4(R1), R2` can be broke down to (i) `RU` provides R1 and R2, (ii) `KU` provides '#4', (iii) `AU` provides 'R1+4', (iv) `MU` provides the contents of address `R1+4`, (v) `LU` performs the AND operation, (vi) `CU` decides whether the result will be stored in R2 based upon the state of the zero flag. The `SU` shift unit is not used. It would not be possible to change this hadron to `ADD.NZ #4(R1), R2` unless there was an additional adder within the datapath. This sets out the _maximum_ that a hadron could implement, irrespective of how these units are wired up (glued together). The CPU might support a conditional jumps but not conditional-ANDs.
+* A number of _hadrons_ can combine to for an _ion_. Every ion involves an instruction fetch and most ions will have only 1 hadron (irrelevant fact: Hydrogen H+ ion is a 1-hadron ion and Hydrogen is the most abundant element in the universe, accounting for about 75% of all matter). A multi-hadron ion is needed for an operation where 1 hardware unit is needed to do more than 1 thing. For example, a hypothetical `RETI` return-from-interrupt instruction pulls both the `PC` program count and `SF` status flags from memory. The `MU` cannot do both of these in the same processor cycle.
+* A number of _ions_ can combine to form a _molecule_. For example, a read-modify-write molecule might consist of the ions (i) disable interrupt, (ii) OR memory with register, (iii) store register to memory, and (iv) enable interrupts. This is , using the computing term 'atomic'
+
+Ultimately, processing is one long stream of _quarks_. Conventionally, a C compiler transforms C source code into such a stream, packaged up into _ions_.
+
+Matching up terminology:
+* 'Huffman' instructions apply to ions
+* 'Uncompressed' instructions apply to hadrons
+* 'VLIW' instructions split this out to independent control of the quarks.
 
 The `Fetch` unit gets Huffman ions from memory and decodes them to Uncompressed hadrons, handling atomicity to determine when interrupts can occur.
 
 
-## 2.2 Instruction Sets
+## 2.2 Compilers, Linkers and Decoders
+
+However, a compiler could just spit out the raw stream of _quarks_, leaving it up to something downstream to package them up into ions. This would allow the hardware engineer to determine whether the `Datapath` unit had its various sub-units connected together in the most optimum way!
+
+Perhaps the assembly code format could be based around the VLIW
+`RU`, `MU`, `AU`, `LU`, `SU`, `KU` and `CU`
+REG R4  NZ
+
+Perhaps a conditional `AND.NZ` _would_ be really #4(R1), R2`
+
+
+
+
+
+
+This would mean the same compiler could be used for a _variety_ of hardware implementations, ranging from a 'quark processor' (very small area but very poor code density) to an 'ion processor' that might bundle _many_ quarks into a single instruction over _many_ processor cycles (such as ARM's 'load/store multiple'). The hardware could be customized to get the best combination of code density, power and area that was possible.
+
+The compiler writer nees to think in terms of hadrons even though the compiler outputs quarks. They need to have the structure of the `Datapath` unit in mind in order to generate quark streams that could compressed as efficiently as possible. For example, if the `SU` comes before the `AU` in the datapath then it would be possible to do 'a + (b<<1)' in one cycle. But if it comes afterwards then it must take 2. The `Datapath` hardware engineer needs to determine that possible ordering of quarks.
+
+The downstream tool to bundle quarks together into ions is the 'gluer' which sits before the linker. It will produce application-specific instructions that get stored in memory. Within the hardware, the `Fetch` unit decodes the instructions into hadrons - the symmetrical opposite of the gluer. The `Datapath` unit then executes the quarks.
+
+The Datapath is the essential core of the XaVI processor architecture and defines what is needed of the compiler. Both are fixed. The system architect siigns off the (ion) instruction set (following analysis), the hardware engineer can change the instruction decoding and a software engineer needs to be able to change the gluer (and likely, the linker too). That gluing needs to be made simple enough for the non-expert to do this. The definition of the instruction set follows analysis of representative code. Tools are ultimately needed to help this analysis:
+1. To determine which hardware options (with corresponding compiler switches) are best.
+2. To detect which hadrons get executed most frequently, and
+3. To detect which hadron sequences get executed most frequently (to bind into ions).
+For the last item, the (open-source) compiler needs to have the transparency for users to know what hadron sequences will be produced.
+
+(See section 5 for more info.)
+
+
+## 2.3 Instruction Sets
 
 XaVI has a defined Uncompressed instruction set, defining the hadrons.
 
@@ -165,7 +201,7 @@ Another XaVI implementation may have no such need and would use some other Huffm
 
 
 
-## 2.3 Atomic Instructions
+## 2.4 Atomic Instructions
 
 Many 'basic' instructions will actually be formed from multiple atomic hadrons. For example:
 - `PUSH Rx` will be implemented as `SUB #1, SP`; `MOVE Rx, (SP)`.
@@ -176,10 +212,10 @@ Many 'basic' instructions will actually be formed from multiple atomic hadrons. 
 And the `Scheduler` also handles interrupts by inserting instructions: `PUSH SF`, `PUSH PC`, `MOVE #0000, PC`.
 {Query: do we want the stack to move up or down memory? Answer: top down}
 
-Hadrons part of the same ion will obviously be atomic. A general indicator of whether something should be atomic is if an ion writes to `PC`, `SF` or `SP`. It may be that an instruction needs to be ftched before it can be determined whether a pending interupt can be accepted.
+Hadrons part of the same ion will obviously be atomic. A general indicator of whether something should be atomic is if an ion writes to `PC`, `SF` or `SP`. It may be that an instruction needs to be fetched before it can be determined whether a pending interupt can be accepted.
 
 
-## 2.4 An Instruction Set / Compiler Strategy
+## 2.5 An Instruction Set / Compiler Strategy
 
 Given that the application is not defined before the compiler is produced, there is this strategy:
 1. Generate a representative test suite (of C code) for the anticipated _type_ of application.
@@ -420,6 +456,7 @@ For the compiler, either LLVM or GCC could be used. The linker is going to be no
 The compiler will generate code for uncompressed hadrons. The linker will then aggregate into Huffman instructions. The compiler code generation (sequence of hadrons) will need to be made availlable to users in a way not normally done for compilers, in order for hardware designers to know how to aggregate hadrons into single or atomic instructions. It needs to be documented where to look in the compiler source code so that designers can engineer rather than reverse-engineer solutions. 
 
 For example, instead of generating a `PUSH R1`, it will generate `MOVE R1, 0(SP)` followed by `SUB #1, SP`. For `PUSH R1, R3, R4, R7` it would generate `MOVE R1, 0(SP); MOVE R3, -1(SP); MOVE R4, -2(SP); MOVE R7, -3(SP); SUB #4, SP`. The linker would then have the option of creating a 'Push multiple' from this.
+
 
 
 # 6. Application-Specific Instruction Coding
