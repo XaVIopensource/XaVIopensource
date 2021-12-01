@@ -101,7 +101,7 @@ within the `Datapath` unit.
 
 In principle, it could be 'Uncompressed' or `VLIW` instructions stored in memory, but that would be grossly inefficient. The 'Huffman' instructions compress the 'Uncompressed' instructions for efficient storage. XaVI will have 32-bit 'Uncompressed' and 16-bit 'Huffman' instructions. The Huffman encoding scheme aims to compress the large majority of 32-bit instructions into 16-bit ones.
 
-* The `Fetch` unit gets Huffman instructions from memory and uncompresses them to one _or more_ Uncompressed instructions. 
+* The `Fetch` unit gets Huffman instructions from memory and uncompresses them to one _or more_ Uncompressed instructions. Emphasize again: one _or more_.
 * The Huffman instruction stream may get interrupted by the (single) hardware interrupt.
 * The `Decode` unit produces a VLIW instruction from an Uncompresssed instruction.
 * The `Datapath` unit contains everything needed to execute a single instruction. Its contents define what is possible at any one time.
@@ -135,6 +135,199 @@ Matching up terminology:
 The `Fetch` unit gets Huffman ions from memory and decodes them to Uncompressed hadrons, handling atomicity to determine when interrupts can occur.
 
 
+# 3. Datapath
+
+The capabilities of the `Datapath` unit define tha VLIW instructions and therefore also the Uncompressed instructions.
+The actual (Verilog code) design of the unit will be bigger than most actual XaVI implementations. For example, it will support more registers than are actually present. But logic synthesis will simply remove the unusable parts. The XaVI architecture is aiming for minimal hardware so it only provides the minimum number of sub-units. These are:
+* `RU` register unit: see below for setails of the register set.
+* `KU` constant unit: provides constants used for immediate, absolute and indexed-indirect addressing modes.
+* `SU` shift unit: arithmetic and logical shifts and rotates, plus sign-extension. This is optionally a barrel shifter.
+* `LU` logic unit: and/or/xor bitwise operations
+* `XU` extension unit: This is not minimal and completely optional. It provides an interface for extended instructions, including multiplication.
+* `AU` arithmetic unit: additions and subtractions
+* `CU` conditional unit: such as for conditional jumps and not writing the result back to `RU` as with a 'compare' instruction.
+* `MU` memory unit: for memory reads and writes.
+There is no hardware for pre- or post- increment/decrement, for example. There is only one adder. This also means that it cannot simultaneously calculate an offset address _and_ do a subtraction. Thus it cannot perform a `SUB 12(R2), R3` hadron but it could _in principle_ perform an `XOR 12(R2), R3` hadron.
+
+## 3.1 The Datapath Concept
+
+The aim of the datapath design is to allow as many of the sub-units to be usable in parallel in order to maximize the computation performed in a single cycle. The Huffman ions _might_ be encoded such that only `SU` _or_ `LU` _or_ `AU` is used for data manipulation on any one processor cycle. And yet, internal to XaVI, it could still have a `Fetch` unit that, for example, decoded a single Huffman instruction into a sequence of many VLIW instructions performing a [CORDIC](https://en.wikipedia.org/wiki/CORDIC) arctangent function. This would have the `SU`, `LU` and `AU` being used in parallel for over 20 processor cycles. 
+
+This is a key concept behind XaVI:
+* Avoid bolting on various co-processors which add significant area and power by trying to use the hardware resources that are available within XaVI.
+* This 'compute in place' means that there is no moving of data into the co-processor or out of it.
+* There is flexibility: perhaps a single instruction for only one CORDIC iteration rather than the whole algorithm would be more flexible.
+
+The `Datapath` traverses are shown in the figures below. {This is a work in progress; and I will move away from Graphviz!}
+
+![A possible XaVI datapath](https://github.com/XaVIopensource/XaVIopensource/blob/main/images/datapath.jpg)
+
+To summarize valid arcs:
+* The destination is either `Rd` or data memory via `DWDATA`.
+* Immediate, register, indirect and absolute addressing modes can support `SU` -> `LU` -> `AU` -> either `Rd` or `DWDATA`
+* Indexed addressing mode can only support `SHU` -> `LU` -> either `Rd` or `DWDATA`
+
+This has been arranged so that the `Datapath` is capable, in principle, of implementing code such as:
+* `    R1 = ((*R2 >> 5) & 0x7) + R3;` peeling fields out of words packed in memory,
+* `???` TBD for a single-step multiply when there is no hardware multiply, and
+* `???` TBD for a single-iteration CORDIC operation,
+in a single cycle.
+
+
+## 3.2 The Register Set
+
+The framework provides for between 8 and 32 registers although most implementations would have around 8 registers. Included within these are:
+* `R0` = `RZ`: is only ever zero.
+* `R1` = `RI` intermediate register.
+* `R2`...`Rn` = general-purpose registers with the last one being designated `SP` for use as the stack pointer (some applications might be so small there is only one level of hierarchy and hence don't need a stack - hence why `SP` is `Rn` not `R2`).
+* `R30` = `PC`: Program Count
+* `R31` = `SF`: Status Flags - a quite standard set comprising `Z`, `I`, `N`, `C` and `V` flags for zero, interrupt-enable, negative, carry and overflow.
+
+The `PC` size is parameterized from full size '15:1' down to '5:1' minimum. Note this is always an even byte address. Program and data memory are separate (XaVI has a Harvard architecture) but the memory may be unified beyond the Instruction Cache. 
+
+The `SF` size is parameterized from normal '4:0' up to full '15:0' with the higher bits available to the user (via assembler).
+
+
+## 3.3 Operations
+
+The `Datapath` provides a 3-operand RISC architecture: `c = func(a, b)` but quarks are limited to support only:
+* `Ra = func(Ra, b)` i.e. 2-operand,
+* `RI = func(Ra, b)` i.e. only one 3-operand register destination, or,
+* `mem[c] = func(Ra, b)` i.e. memory destination (absolute addressing mode).
+* `mem[Rc] = func(Ra, b)` i.e. memory destination (indirect addressing mode).
+* `mem[Rc+b] = func(Ra)` i.e. memory destination (indexed indirect addressing mode)
+
+Operations are generally available in both Byte and Word16 data widths.
+
+`SU` operations are...
+
+| Unary   | Operations                 | V | N | Z | C |
+|---------|----------------------------|---|---|---|---|
+| `MOVE`  | Move (pass through)        | * | * | * | * |
+| `ROLC`  | Rotate left thru carry     | * | * | * | * |
+| `RORC`  | Rotate right thru carry    | * | * | * | * |
+| `SHRA`  | Signed shift right, arithmetic    | (0) | * | * | * |
+| `SEXT`  | Sign-extend byte           | (0) | * | * | * |
+| `SWPB`  | Swap bytes                 | - | - | - | - |
+
+
+`LU` operations are...
+
+| Dyadic    | Operations                                | V | N | Z | C |
+|-----------|-------------------------------------------|---|---|---|---|
+| `AND`     | Logical AND                               | 0 | * | * | * |
+| `OR`      | Logical OR, equivalent to `SET`           | * | * | * | * |
+| `XOR`     | Exclusive OR                              | * | * | * | * |
+| `BIT`     | Bit test (logical AND without write-back) | 0 | * | * | * |
+| `CLR`     | Clear bits (logical AND with 1's complement)   | - | - | - | - |
+| `SET`     | Set bits (logical OR)                          | - | - | - | - |
+
+`AU` operations are...
+
+| Dyadic    | Operations                                | V | N | Z | C |
+|-----------|-------------------------------------------|---|---|---|---|
+| `ADD`     | Add                                       | * | * | * | * |
+| `ADDC`    | Add with carry                            | * | * | * | * |
+| `SUB`     | Subtract                                  | * | * | * | * |
+| `SUBC`    | Subtract with carry                       | * | * | * | * |
+| `CMP`     | Compare  (`SUB` without write-back)       | * | * | * | * |
+
+Notes: 
+- There is no `ROLA` or `RORA`. `SHRA` shifts right with bit zero going into the carry.
+- `OR`: additional
+- { is the clearing of V for `AND` and `BIT` just a consequence of operation and not actually an exception?}
+- `ROLC  Rx` rotate left through carry can be achieved with `ADDC Rx, Rx`.
+- `SHLA Rx` shift arithmetic left can be achieved with `ADD  Rx, Rx`.
+- `SWPB` is the equivalent of `RORA` 8 times.
+
+{What about `SHR`, `SHLL` and `SHLA` arithmetic and logical shifts left and right? Is `RORA` really Arithmetic Shift Right? i.e. MSB stays the same. Could a sign-extend be achieved by `RORA.B Rx`; `ADDC.W Rx,Rx` (if a byte rotate sets all upper-byte bits to bit 7)?
+
+By convention, 'Jumps' are long absolute (example `MOVE aaaa, PC`) whereas 'branches' are short relative, conditional on the `SF` flags. But the Uncompressed instructions need not make the distinction. Relative addressing just performs an `ADD` using the `ALU`.
+
+Conditions are: 
+
+| Opcode | Condition |
+|--------|-------|
+| `NZ`  | `Z`=0 |
+| `Z`   | `Z`=1 |
+| `POS` | `N`=0 |
+| `NEG` | `N`=1 |
+| `NC`  | `C`=0 |
+| `C`   | `C`=1 |
+| `GE`  | '>=' : `N`=`V` |
+| `LESS` | '<' : not `N`=`V` |
+| `ALL`  | always |
+| `NULL`  | never |
+
+Note:
+- `Z` zero flag set on bits 15:0 of the result being zero. {or 7:0 for byte operations}
+- `N` negative flag set on bit 15 of the result being set (word) or bit 8 (byte).
+- `C` carry flag and `V` overflow flag: the result is too big to fit into the required size of the result (word or byte). For `V`, the resultant sign is wrong.
+
+
+## 3.3 Fences
+
+The combinatorial path through `Datapath` might be long. For example, in executing a `MOVE (Rx+#nnnn), Ry` instruction:
+- Register Rx,
+- Select multiplexer for operand A,
+- `AU` creates the indexed address,
+- out to `DADDR` data memory address,
+- through memory subsystem ...
+- address decoding
+- memory,
+- read data multiplexing, and
+- back to `DRDATA` read data,
+- through to the input of register Ry.
+
+New terminology: 'fence'. At various points, fences will need to be inserted into the datapath. (I use the term 'fence' when 'gate' would have made a better analogy - except of course that 'gate' is fundamentally defined already.) These fences may be one of:
+- AND gates, to force downstream nodes to to reduce unnecessary transitions.
+- latches, to hold downstream nodes stable to reduce unnecessary transitions during part of the dataflow through the `Datapath`.
+- flip-flops, performing the same roll as latches, but in the context of added pipelining.
+- wires as it were, i.e. no fence at all.
+
+There is no pipelining in the basic XaVI but flip-flop fences could be inserted into the `Datapath` if pipelining was to be added.
+
+The controls for these fences will come from the `Control` block. Design experimentation can lead to the more power-optimal implementations. (Note: synthesis tools can perform  data path gating to reduce power. Generally introducing sequential cells is not an option. 
+Adding in fences may reduce dynamic power but it will increase area and hence leakage to. There is a tradeoff here.
+This fencing allows experimentation regardless of the synthesis tool capability.
+
+This is a key XaVI concept: to allow exploration of different fence configurations in order to minimize overall power consumption. This exploration can be automated.
+
+The general strategy is arrange timing from `Control` so that logic is _not_ getting constrained (i.e. leading to an increase in area). An exception here is addition within `AU`. A Brent-Kung Adder (BKA, a parallel prefix adder: PPA; a form of carry-lookahead adder: CLA) is likely to have lower power than a Ripple Carry Adder (RCA). There is the option to explicitly use such an adder rather than letting the synthesis tool build the adder.
+
+The clock provided to XaVI will generally be faster than the 'processor cycle'. This allows the `Control` unit to generate the controls for the fences to minimize signal transitions.
+
+
+
+# 4 Compilers, Linkers and Decoders
+
+!!!!!!!! Up to here in the updating !!!!!!!!!!!!!!
+
+Update with info on:
+* Quark compiler
+* Sequence R-K-S-L-A-C-M
+* Quark instruction set
+* Gluer sequence
+
+
+
+### Generating custom instructions using the compiler???
+
+{analysis of quark sequences or hadron sequences? }
+
+Custom instructions for a CORDIC arctan accelerator, for example, could be created by:
+1. Writing the algorithm in C.
+2. Compiling it to a quark sequence.
+3. Deciding which parts of the sequence are to be chunked together in hardware.
+4. Breaking the sequence to be implemented in hardware down to VLIW hadrons
+5. Changing the `Fetch` unit to implement those ions.
+
+A slight modification to the code would lead to a different quark sequence, leading to those special instructions not being chosen. The same C compiler can be used for hardware that supports CORDIC arctan in multiple different ways.
+
+
+
+
+
 ## 2.2 Compilers, Linkers and Decoders
 
 However, a compiler could just spit out the raw stream of _quarks_, leaving it up to something downstream to package them up into ions. This would allow the hardware engineer to determine whether the `Datapath` unit had its various sub-units connected together in the most optimum way!
@@ -152,7 +345,7 @@ Perhaps a conditional `AND.NZ` _would_ be really #4(R1), R2`
 
 This would mean the same compiler could be used for a _variety_ of hardware implementations, ranging from a 'quark processor' (very small area but very poor code density) to an 'ion processor' that might bundle _many_ quarks into a single instruction over _many_ processor cycles (such as ARM's 'load/store multiple'). The hardware could be customized to get the best combination of code density, power and area that was possible.
 
-The compiler writer nees to think in terms of hadrons even though the compiler outputs quarks. They need to have the structure of the `Datapath` unit in mind in order to generate quark streams that could compressed as efficiently as possible. For example, if the `SU` comes before the `AU` in the datapath then it would be possible to do 'a + (b<<1)' in one cycle. But if it comes afterwards then it must take 2. The `Datapath` hardware engineer needs to determine that possible ordering of quarks.
+The compiler writer needs to think in terms of hadrons even though the compiler outputs quarks. They need to have the structure of the `Datapath` unit in mind in order to generate quark streams that could compressed as efficiently as possible. For example, if the `SU` comes before the `AU` in the datapath then it would be possible to do 'a + (b<<1)' in one cycle. But if it comes afterwards then it must take 2. The `Datapath` hardware engineer needs to determine that possible ordering of quarks.
 
 The downstream tool to bundle quarks together into ions is the 'gluer' which sits before the linker. It will produce application-specific instructions that get stored in memory. Within the hardware, the `Fetch` unit decodes the instructions into hadrons - the symmetrical opposite of the gluer. The `Datapath` unit then executes the quarks.
 
@@ -244,162 +437,6 @@ So there is a progression of the project from existing compiler + simple linker 
 It means that hardware development (step 5) and compiler development (step 7) is not held up by the critical instruction set definition.
 
 
-
-# 3. Datapath
-
-The capabilities of the `Datapath` unit define tha VLIW instructions and therefore also the Uncompressed instructions.
-The design of the unit will be bigger than most actual XaVI implementations, relying on synthesis to remove unused parts.
-
-The minimum components for a low-area CPU will be:
-* registers,
-* an arithmetic unit,
-* a logic unit,
-* a shift unit, and
-* a data memory interface.
-Here, we add an expansion/extension/coprocessor interface (e.g. for a hardware multiplier).
-
-The arithmetic unit performs adds, subtracts and compares which clearly require the same underlying hardware. The other components of an 'Arithmetic Logic Unit' do not and so have been split. No hardware can be used twice within one hadron instruction cycle. Thus, `SUB (0x1234+Rx), Ry` is not possible as there are two tasks for the Arithmetic Unit here. The datapath should be structured to allow the most compute to be performed given the hardware resources. Thus, it should not preclude `AND (0x1234+Rx), Ry`, for example. On the other hand, the _possibility_ of having this instruction does not mean that the `Fetch` unit _will_ support this.
-
-The `Datapath` traverses are shown in the figures below. {Shows what could be done. Actual may be simpler. Work in progress; will move away from Graphviz!}
-
-![A possible XaVI datapath](https://github.com/XaVIopensource/XaVIopensource/blob/main/images/datapath.jpg)
-
-To summarize valid arcs:
-* The destination is either `Rd` or data memory via `DWDATA`.
-* Immediate, register, indirect and absolute addressing modes can support `SHU` -> `LU` -> `AU` -> either `Rd` or `DWDATA`
-* Indexed addressing mode can only support `SHU` -> `LU` -> either `Rd` or `DWDATA`
-
-This has been arranged so that the `Datapath` is capable, in principle, of implementing the code:
-`    R1 = ((*R2 >> 5) & 0x7) + R3;`
-(i.e. peeling a 3-bit number out of a packed word in memory) in a single instruction.
-
-{Writing into packed words, e.g. packed control registers, would need read-modify-write atomic sequences. I presume that there is the freedom to allocate control bits sensibly whereas this luxury is not often possible in packed code/data from flash.}
-
-
-## 3.1 The Register Set
-
-The framework provides for between 8 and 32 registers. Included within these are:
-* `R0` = `RZ`: is only ever zero.
-* `R1` = `SP` stack pointer - actually just the same as other registers. The compiler sould use any register above 2 for the stack pointer.
-* `R30` = `PC`: Program Count
-* `R31` = `SF`: Status Flags - a quite standard set comprising `Z`, `I`, `N`, `C` and `V` flags for zero, interrupt-enable, negative, carry and overflow.
-
-(Note: Huffman instructions are likely only to be able to access registers 0...7 with single-word instructions. Interaction with flags and `PC` is normally only via conditional branches.)
-
-The `PC` size is parameterized from full size '15:1' down to '5:1' minimum. Note this is always an even byte address. Program and data memory are separate (XaVI has a Harvard architecture) but the memory may be unified beyond the Instruction Cache. 
-
-
-## 3.2 Operations
-
-The `Datapath` provides a 3-term RISC architecture: `c = func(a, b)` where a and b can be one of:
-* A register `Ra`, `Rb` ('register' addressing mode)
-* A value `n` ('immediate' addressing mode)
-* The contents of data memory `mem[n]` ('absolute' addressing mode)
-* The contents of data memory `mem[Ra+n]` or `mem[Rb+n]` ('indexed indirect' addressing mode)
-
-Note: the 16-bit Huffman instruction width means that Huffman instructions will generally be 2-term `b = func(a, b)` and with no 3-term instructions. 
-
-The destination may be one of:
-* Register `Rc`.
-* Memory write mem[c]
-
-The function may be derived from one of:
-* `ALU`: unary arithmetic logic unit
-* `ALU1`: dyadic arithmetic logic unit
-* `SU3`: unary shift unit, fundamentally providing `SL`, `ROL`, `SR` and `ROR` instructions
-* `XU4`: optional external custom unit. This is likely to provide multiply and multiply-accumulate instructions but the precise form can be customized.
-
-Operations are generally available in both Byte and Word16 data widths.
-
-| Unary   | Operations                 | V | N | Z | C |
-|---------|----------------------------|---|---|---|---|
-| `MOVE`  | Move (pass through)        | * | * | * | * |
-| `ROLC`  | Rotate left thru carry     | * | * | * | * |
-| `RORC`  | Rotate right thru carry    | * | * | * | * |
-| `SHRA`  | Signed shift right, arithmetic    | (0) | * | * | * |
-| `SEXT`  | Sign-extend byte           | (0) | * | * | * |
-| `SWPB`  | Swap bytes                 | - | - | - | - |
-
-
-| Dyadic    | Operations                                | V | N | Z | C |
-|-----------|-------------------------------------------|---|---|---|---|
-| `ADD`     | Add                                       | * | * | * | * |
-| `ADDC`    | Add with carry                            | * | * | * | * |
-| `SUB`     | Subtract                                  | * | * | * | * |
-| `SUBC`    | Subtract with carry                       | * | * | * | * |
-| `CMP`     | Compare  (`SUB` without write-back)       | * | * | * | * |
-| `AND`     | Logical AND                               | 0 | * | * | * |
-| `OR`      | Logical OR, equivalent to `SET`           | * | * | * | * |
-| `XOR`     | Exclusive OR                              | * | * | * | * |
-| `BIT`     | Bit test (logical AND without write-back) | 0 | * | * | * |
-| `CLR`     | Clear bits (logical AND with 1's complement)   | - | - | - | - |
-| `SET`     | Set bits (logical OR)                          | - | - | - | - |
-
-Notes: 
-- There is no `ROLA` or `RORA`. `SHRA` shifts right with bit zero going into the carry.
-- `OR`: additional
-- { is the clearing of V for `AND` and `BIT` just a consequence of operation and not actually an exception?}
-- `ROLC  Rx` rotate left through carry can be achieved with `ADDC Rx, Rx`.
-- `SHLA Rx` shift arithmetic left can be achieved with `ADD  Rx, Rx`.
-- `SWPB` is the equivalent of `RORA` 8 times.
-
-{What about `SHR`, `SHLL` and `SHLA` arithmetic and logical shifts left and right? Is `RORA` really Arithmetic Shift Right? i.e. MSB stays the same. Could a sign-extend be achieved by `RORA.B Rx`; `ADDC.W Rx,Rx` (if a byte rotate sets all upper-byte bits to bit 7)?
-
-
-By convention, 'Jumps' are long absolute (example `MOVE aaaa, PC`) whereas 'branches' are short relative, conditional on the `SF` flags. But the Uncompressed instructions need not make the distinction. Relative addressing just performs an `ADD` using the `ALU`.
-
-| Opcode | Condition |
-|--------|-------|
-| `BNZ`  | `Z`=0 |
-| `BZ`   | `Z`=1 |
-| `BPOS` | `N`=0 |
-| `BNEG` | `N`=1 |
-| `BNC`  | `C`=0 |
-| `BC`   | `C`=1 |
-| `BGE`  | '>=' : `N`=`V` |
-| `BL`   | '<' : not `N`=`V` |
-| `BRA`  | always |
-
-Note:
-- `Z` zero flag set on bits 15:0 of the result being zero.
-- `N` negative flag set on bit 15 of the result being set (word) or bit 8 (byte).
-- `C` carry flag and `V` overflow flag: result is too big to fit into the required size of the result (word or byte). For `V`, the resultant sign is wrong.
-- `BNL`: additional
-- No 'Jump less' (`N`=0 and `Z`=0)
-
-
-## 3.3 Fences
-
-The combinatorial path through `Datapath` might be long. For example, in executing a `MOVE (Rx+#nnnn), Ry` instruction:
-- Register Rx,
-- Select multiplexer for operand A,
-- `ALU`
-- out to `DADDR` data memory address,
-- through memory subsystem ...
-- address decoding
-- memory,
-- read data multiplexing, and
-- back to `DRDATA` read data,
-- through to the input of register Ry.
-
-At various points, 'fence' will be inserted into the datapath. I use the term 'fence' when 'gate' would have made a better analogy - except of course that 'gate' is fundamentally defined already. These fence may be one of:
-- AND gates, to force downstream nodes to to reduce unnecessary transitions.
-- latches, to hold downstream nodes stable to reduce unnecessary transitions during part of the dataflow through the `Datapath`.
-- flip-flops, performing the same roll as latches, but in the context of added pipelining.
-- wires as it were, i.e. no fence at all.
-
-There is no pipelining of instructions in the basic XaVI but flip-flop fences could be inserted into the `Datapath` if it was to be added.
-
-The controls for these fences will come from the `Control` block. Design experimentation can lead to the more power-optimal implementations. (Note: synthesis tools can perform  data path gating to reduce power. Generally introducing sequential cells is not an option. 
-Adding in fences may reduce dynamic power bit but it will increase area and hence leakage to. There is a tradeoff here.
-This fencing allows experimentation regardless of synthesis tool capability.
-
-The general strategy is arrange timing from `Control` so that logic is _not_ getting constrained (i.e. leading to an increase in area). An exception here is additiona within `ALU1`. A Brent-Kung Adder (BKA, a parallel prefix adder: PPA; a form of carry-lookahead adder: CLA) is likely to have lower power than a Ripple Carry Adder (RCA). There is the option to explicitly use such an adder rather than letting the synthesis tool build an adder.
-
-A single Uncompressed instruction cycle will likely be done over a number of processor clock cycles - the processor clock is deliberately designed to be faster so as to generate controls for the fences to minimize signal transitions. This phasing is handled by the `Control` block. 
-
-
-
 # 4. Port Interface
 
 The _basic_ port interface is as follows:
@@ -465,8 +502,6 @@ The following gives some indication of how instructions might be encoded.
 
 
 But first look at some very good 16-bit instruction sets for reference...
-
-## MSP430
 
 Key to the summary tables:
 * '-': 0 or 1 to encode the instruction
@@ -545,8 +580,7 @@ More irregular, with the addressing mode determined by type...
 
 ## ARM Thumb2
 
-TBD: Differences w.r.t MSP430
-
+https://developer.arm.com/documentation/ddi0484/b/CHDCICDF
 
 
 
