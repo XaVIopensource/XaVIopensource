@@ -3,7 +3,10 @@
 
 {Wikipedia-like editorial warning: this article is starting to get a bit rambling and needs tidying up eventually, when the concepts start to settle.}
 
-# 1. Not Another One!
+# 1. Introduction
+
+
+# 1.1 Not Another One!
 
 Why do we need _another_ processor?
 * **For Analog/Mixed-Signal**: Many analog/mixed-signal chip providers have developed their own proprietary little processor for embedding into their chips. But there is no _standard_, _open_ 16-bit processor: the ARM or MIPS of the mixed-signal world. This 'tiny' CPU sits below a CPU in ARM's 'big.LITTLE' system concept. Not so tiny (8-bit) that its code density adversely affects dynamic power consumption but not so large (32-bit 'LITTLE') that its area adversely affects dynamic power consumption. 16 bits is _just_ right - just a bit bigger than the size of an ADC or DAC. 
@@ -11,17 +14,19 @@ Why do we need _another_ processor?
 * **Ultra-Low Power**: Low area means low leakage, but the objective is also to have minimal signal transitions to perform the computation in order to minimize dynamic power. There will be some particular characteristics that will make XaVI particularly good for some ultra-low power techniques.
 * **High code density** is critical in achieving low _system_ area and power. Being able to customize the instruction set takes this further.
 * **Open**: without most restrictions on commercial use. This includes not needing to acknowledge the presence of XaVI CPUs to customers where their embedding is hidden from them.
+* **Customizable**: able to change to produce the best system performance, radically in some cases.
 * **Free**: free from the risk of clone claims from legal heavyweights, regardless of their legitimacy.
-* **Compiler**: It needs to have a proven C compiler. 
+* **Compiler**: But in all cases, there will be a proven C compiler. 
 
 Enter XaVI: XVI for 16, and the 'a' can stand for analog.
 
 
-# 1.1. Concept Summary
+# 1.2. Concept Summary
 
 The basic approaches to achieve low area and power are to have:
 * Minimal datapath hardware, as a combinatorial path that can be optimized in synthesis and layout for the user-specific application to reduce unnecessary signal transitions.
 * User-defined compression of the instruction set to achieve maximum code density for the user-specific application.
+* Flexibility to add not just _tightly-coupled_ hardware acceleration, but _completely-integrated_ hardware acceleration that shares the processor's resources. 
 
 Between a fixed C compiler and the Datapath hardware, the software and hardware can be changed, optimized to the application:
 * Software: translation (Huffman coding) of (perhaps multiple) 32-bit compiler instructions to the (often multiple) 16-bit instructions stored in memory.
@@ -30,10 +35,27 @@ Between a fixed C compiler and the Datapath hardware, the software and hardware 
 The minimal `Datapath` comprises just an adder, a shifter and a logic unit. The shift unit can be configured for single-bit shifting or barrel shifting. A multiplier can be provided through an expansion interface. The register bank of configurable size (compiler switch). The compiler can be configured accordingly: for the number of registers and presence/absence of barrel shifter and multiplier.
 
 
+Below are some examples to provide some context applications.
 
-Below are 3 examples to provide some context applications.
+# 1.3. A Sorry Tale
 
-# 1.2. First example 'Programmable State Machines' System
+First, an example of how _not_ to do things. Custom hardware is developed in order to improve performance and power consumption. The processor is kept in a sleep state during this time and the custom pipelined hardware performs numerous arithmetic operations per clock cycle. Unfortunately, the requirements for the custom block change slightly (perhaps because of new customer requirements or perhaps from needing to work around analog issues). The hard-coded processing can no longer be used in this scenario and the application must revert to using the processor. The custom hardware was too brittle. The result is a system that is _larger_ and _more_ power-hungry than the original processor on its own. 
+
+
+# 1.4. First example Embedded System
+
+An embedded energy-scavenging XaVI must perform a lot of various DSP filtering on sense signals before a neural net classifier. It also manages the overall application in this TinyML IoT system.
+* 64Kbyte Flash provides 48Kbytes data constants and 8Kwords of program space. 
+* 2Kword instruction cache.
+* 8Kbytes data RAM.
+* The XaVI hardware is modified to implement various specific sequences of instructions (such as a sum-of-products) as single instructions, in order to reduce instruction memory accesses to save power.
+* The XaVI standard datapath hardware basically comprising shift, logic and arithmetic units is modified to add _four_ multiply-accumulates that can be arranged either as a biquad filter or a 4-stage FIR filter. One MAC is used to provide multiply and multiply-accumulate instructions.
+* The compiler is not told of the extra registers but they are available for customized assembly code routines. 
+* It also has 'maximum' and 'minimum' instructions. These are used for rectified-linear functions for the neural net but are also usable for hand-coded DSP saturation in-line assembler. The augmented processor can perform a rectified sum of products with just two instructions and with 100% utilization of the data memory interface.
+* All the added capabilities can be used together but they can be used separately, put together in similar situations, such as when requirements have changed.
+
+
+# 1.5. Second example 'Programmable State Machines' System
 
 Two XaVI subsystems on an Analog IC:
 * One is needed for the receive part of the IC, for some specific dynamic control of the analog front end. The best control methods are dependent on the application and it is not possible to anticipate future requirements. The host downloads its code at power-up.  
@@ -42,11 +64,12 @@ Two XaVI subsystems on an Analog IC:
 * Each CPU has only 32 words of memory! These are primarily for instructions (XaVI's internal registers provide the necessary data space for these simple timer programs).
 * An external host processor downloads code to the subsystem at power-up and possibly during operation.
 * The host processor can thereby access those control/status registers, but the architecture allows faster, less noisy control than if directed from the host. And it is more flexible than if there were hard-wired circuits instead.
-* Both processors have the same customization: a 'decrement Rx and jump-relative if non-zero' instruction that  can be used to jump back to self in a low-power state. This is effectively a sleep/'wait for' timer but uses the resources of the CPU (i.e. adder and registers).
-* {Although the final 32-word programs may be hand-assembled, the C compiler accelerates development.}
+* Both processors have the same customization: a 'decrement Rn and jump-relative if non-zero' instruction that can be used to jump back to self in a low-power state. This is what is effectively used as a sleep/'wait for' timer but it is using the resources of the CPU (i.e. the adder and pne register). Another register retains contents but everything else in the processor and wider system is powered down during sleep.
+* Both processors have an otherwise simplified instruction decoding. Multi-cycle instructions such as 'push' and must be implemented as separate (but atomic) 'move rx, (sp)' then 'sub #1, sp' instructions, but these are not used in this simple system.
+* Although the final 32-word programs may be hand-assembled, the C compiler accelerates development and evaluation.
 
 
-# 1.3. Second example 'Local Processor' System
+# 1.6. Thrid example 'Local Processor' System
 
 A Local processor on an Analog IC.
 * XaVI masters a SPI bus to which a serial EEPROM is connected. 
@@ -56,17 +79,8 @@ A Local processor on an Analog IC.
 * Hardware outside of XaVI can compare 2 registers with the program count and halt the CPU on a match. This can provide the minimal debug logic with 2 hardware breakpoints. In this case, those registers are obviously not usable by the compiler. After most code has been developed and debugged, the user can choose to sacrific these breakpoints for greater code efficiency.
 
 
-# 1.4. Third example Embedded System
 
-An embedded energy-scavenging XaVI must perform a lot of various DSP filtering on sense signals before a neural net classifier. It also manages the overall application in this TinyML system.
-* 64Kbyte Flash provides 48Kbytes data constants and 8Kwords of program space. 
-* 2Kword instruction cache.
-* 8Kbytes data RAM 
-* The XaVI hardware is modified to implement various specific sequences of instructions (such as a sum-of-products) as single instructions, in order to reduce memory accesses to save power.
-* Tightly-coupled hardware provides a multiply-accumulator with saturation and also ReLU (rectified linear) and SoftMax operations.
-
-
-# 1.5. Block Diagram Example System
+# 1.7. Block Diagram Example System
 
 The block digram shows a superset of another possible small system.
 * XaVI is executing code in iCache for 99% of time with occassional access to SPI flash. Code could be in RAM but this is not used.
