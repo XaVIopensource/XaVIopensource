@@ -315,6 +315,85 @@ The clock provided to XaVI will generally be faster than the 'processor cycle'. 
 
 # 4 Compilers, Linkers and Decoders
 
+
+# Quark Instruction Set
+
+The compiler generates streams of quark instructions, with no attempt to encode instructions efficiently, hence the arbitrary coding here:
+* nibble 3 (top) indicates quark type (R, K, S, L, A, C, M),
+* nibble 2 indicates the instruction within that quark type,
+* nibble 1 selects operands and also the word size, and
+* nibble 0 (bottom) selects the X operand and number of bit shifts.
+
+Reminder: multiple quarks will be executed per processor instruction cycle.
+
+The VLIW instruction codes that control the `Datapath` hardware are easily derived from these quark instruction codings.
+
+
+| Mnemonic       | Size  | 15 | 14 | 13 | 12 | 11 | 10 | 9  | 8  | 7  | 6  | 5  | 4  | 3  | 2  | 1  | 0  | 15:0    | Description                         | Pseudocode                                  |
+|----------------|-------|----|----|----|----|----|----|----|----|----|----|----|----|----|----|----|----|---------|-------------------------------------|---------------------------------------------|
+| R.NUL          | W     | 0  | 0  | 0  | 0  | 0  | -  | -  | -  | -  | -  | -  | -  | -  | -  | -  | -  | -       | (Register unit null operation)      | X=reg[0]; Y=reg[0];                         |
+| R.SEL   r2, r3 | W     | 0  | 0  | 0  | 0  | 1  | -  | x4 | y4 | y3 | y2 | y1 | y0 | x3 | x2 | x1 | x0 | -       | Register selects                    | X=reg[x]; Y=reg[y];                         |
+| K.IMM   0x1234 | W     | 0  | 0  | 0  | 1  | 0  | 0  | 0  | 0  | -  | -  | -  | -  | -  | -  | -  | -  | n[15:0] | Set immediate constant              | K=n;                                        |
+| K.IMM   0x56   | B     | 0  | 0  | 0  | 1  | 0  | 0  | 0  | 1  | n7 | n6 | n5 | n4 | n3 | n2 | n1 | n0 | -       | Set immediate constant (byte)       | K=n;                                        |
+| K.RD           | B/W   | 0  | 0  | 0  | 1  | 0  | 0  | 1  | 0  | b  | -  | -  | -  | -  | -  | -  | -  | -       | Select memory read                  | K=mem[daddr];                               |
+| S.NUL          |       | 0  | 0  | 1  | 0  | 0  | 0  | 0  | 0  | -  | -  | -  | -  | -  | -  | -  | -  | -       | (Shift unit null operation)         | S =  op1                                    |
+| S.LA   K       | W     | 0  | 0  | 1  | 0  | 0  | 1  | 0  | 0  | -  | -  | s5 | s4 | n3 | n2 | n1 | n0 | -       | Shift left arithmetic               | S =  op1 << n                               |
+| SWAB           | B<->B | 0  | 0  | 1  | 0  | 1  | 0  | 0  | 0  | -  | -  | s5 | s4 | -  | -  | -  | -  | -       | Swap bytes                          | S = { op1[7:0], op1[15:8] }                 |
+| S.EXT          | B->W  | 0  | 0  | 1  | 0  | 1  | 0  | 0  | 1  | -  | -  | s5 | s4 | -  | -  | -  | -  | -       | Sign extend                         | S = { 8{op1[7]}, op1[7:0] }                 |
+| S.RA           | B/W   | 0  | 0  | 1  | 0  | 1  | 1  | 0  | 0  | -  | -  | s5 | s4 | n3 | n2 | n1 | n0 | -       | Shift right arithmetic              | S =  op1 >> n                               |
+| S.RR           | B/W   | 0  | 0  | 1  | 0  | 1  | 1  | 0  | 1  | b  | -  | s5 | s4 | n3 | n2 | n1 | n0 | -       | Shift: right rotation               | S =  rotate( op1  >> n )                    |
+| S.RRC          | B/W   | 0  | 0  | 1  | 0  | 1  | 1  | 1  | 0  | b  | -  | s5 | s4 | n3 | n2 | n1 | n0 | -       | Shift: right rotation through carry | S =  rotate({ c, op1 } >> n )               |
+| L.NUL          | B/W   | 0  | 0  | 1  | 1  | 1  | 0  | 0  | 0  | b  | -  | -  | -  | -  | -  | -  | -  | -       | (Logic unit null operation)         | L = op1                                     |
+| L.AND          | B/W   | 0  | 0  | 1  | 1  | 1  | 0  | 0  | 0  | b  | -  | s5 | s4 | -  | -  | -  | -  | -       | Logical AND                         | L = op1 & op2                               |
+| L.OR           | B/W   | 0  | 0  | 1  | 1  | 1  | 0  | 0  | 1  | b  | -  | s5 | s4 | -  | -  | -  | -  | -       | Logical OR                          | L = op1 | op2                               |
+| L.XOR          | B/W   | 0  | 0  | 1  | 1  | 1  | 0  | 1  | 0  | b  | -  | s5 | s4 | -  | -  | -  | -  | -       | Logical XOR                         | L = op1 ^ op2                               |
+| L.ANT          | B/W   | 0  | 0  | 1  | 1  | 1  | 0  | 1  | 1  | b  | -  | s5 | s4 | -  | -  | -  | -  | -       | Logical And-NoT: a&~b               | L = op1 & ~op2                              |
+| A.NUL          |       | 0  | 1  | 0  | 0  | 0  | 0  | 0  | 0  | b  | -  | -  | -  | -  | -  | -  | -  | -       | Arithmetic: add                     | A = op1 + op2                               |
+| ADD            | B/W   | 0  | 1  | 0  | 0  | 1  | 0  | 0  | 0  | b  | -  | s5 | s4 | -  | -  | -  | -  | -       | Arithmetic: add                     | A = op1 + op2                               |
+| ADC            | B/W   | 0  | 1  | 0  | 0  | 1  | 0  | 0  | 1  | b  | -  | s5 | s4 | -  | -  | -  | -  | -       | Arithmetic: add with carry          | A = op1 + op2 + C                           |
+| A.SUB          | B/W   | 0  | 1  | 0  | 0  | 1  | 0  | 1  | 0  | b  | -  | s5 | s4 | -  | -  | -  | -  | -       | Arithmetic: subtract                | A = op1 + ~op2 + 1                          |
+| A.SBC          | B/W   | 0  | 1  | 0  | 0  | 1  | 0  | 1  | 1  | b  | -  | s5 | s4 | -  | -  | -  | -  | -       | Arithmetic: subtract with carry     | A = op1 + ~op2 + ~C                         |
+| C.NO           |       | 0  | 1  | 0  | 1  | 0  | 0  | 0  | 0  | -  | -  | -  | -  | -  | -  | -  | -  | -       | Condition: write never              |                                             |
+| C.YES          |       | 0  | 1  | 0  | 1  | 0  | 0  | 0  | 1  | -  | s6 | s5 | s4 | -  | -  | -  | -  | -       | Condition: write always             | r[op1] = s6 ? A : L                         |
+| C.NZ           |       | 0  | 1  | 0  | 1  | 1  | 0  | 0  | 0  | -  | s6 | s5 | s4 | -  | -  | -  | -  | -       | Condition: write Rx if Z=0          | if (Z==0){ r[op1] = s6 ? A : L }            |
+| C.Z            |       | 0  | 1  | 0  | 1  | 1  | 0  | 0  | 1  | -  | s6 | s5 | s4 | -  | -  | -  | -  | -       | Condition: write Rx if Z=1          | if (Z==1){ r[op1] = s6 ? A : L }            |
+| C.NC           |       | 0  | 1  | 0  | 1  | 1  | 0  | 1  | 0  | -  | s6 | s5 | s4 | -  | -  | -  | -  | -       | Condition: write Rx if C=0          | if (C==0){ r[op1] = s6 ? A : L }            |
+| C.C            |       | 0  | 1  | 0  | 1  | 1  | 0  | 1  | 1  | -  | s6 | s5 | s4 | -  | -  | -  | -  | -       | Condition: write Rx if C=1          | if (C==1){ r[op1] = s6 ? A : L }            |
+| C.NN           |       | 0  | 1  | 0  | 1  | 1  | 1  | 0  | 0  | -  | s6 | s5 | s4 | -  | -  | -  | -  | -       | Condition: write Rx if N=0          | if (N==0){ r[op1] = s6 ? A : L }            |
+| C.NEG          |       | 0  | 1  | 0  | 1  | 1  | 1  | 0  | 1  | -  | s6 | s5 | s4 | -  | -  | -  | -  | -       | Condition: write Rx if N=1          | if (N==1){ r[op1] = s6 ? A : L }            |
+| C.GTE          |       | 0  | 1  | 0  | 1  | 1  | 1  | 1  | 0  | -  | s6 | s5 | s4 | -  | -  | -  | -  | -       | Condition: write Rx if N=V          | if (N==V){ r[op1] = s6 ? A : L }            |
+| C.LT           |       | 0  | 1  | 0  | 1  | 1  | 1  | 1  | 1  | -  | s6 | s5 | s4 | -  | -  | -  | -  | -       | Condition: write Rx if N!=V         | if (N!=V){ r[op1] = s6 ? A : L }            |
+| M.NUL          |       | 0  | 1  | 1  | 0  | 0  | 0  | 0  | 0  | -  | -  | -  | -  | -  | -  | -  | -  | -       | (Memory unit null operation)        |                                             |
+| M.RD           | B/W   | 0  | 1  | 1  | 0  | 1  | 0  | 0  | 0  | b  | -  | s5 | s4 | -  | -  | -  | -  | -       | Memory read request                 | daddr = s5 ? A : L                          |
+| M.WR           | B/W   | 0  | 1  | 1  | 0  | 1  | 0  | 0  | 1  | b  | -  | s5 | s4 | -  | -  | -  | -  | -       | Memory write                        | daddr = s5 ? A : L; mem[daddr] = s4 ? A : L |
+
+
+
+The operands referred to in the table above are selected as per the table below.
+
+| Instruction   | s5 | s4 | Description                                                  |
+|---------------|----|----|--------------------------------------------------------------|
+| L.xx    Y, X  | 0  | 0  | Operand is X; operator is Y                                  |
+| L.xx    K, X  | 0  | 1  | Operand is X; operator is K                                  |
+| L.xx    S, X  | 1  | 0  | Operand is X; operator is S                                  |
+|               | 1  | 1  | (N/A: reserved for expansion)                                |
+| A.xx    Y, X  | 0  | 0  | Operand is X; operator is Y                                  |
+| A.xx    K, X  | 0  | 1  | Operand is X; operator is K                                  |
+| A.xx    S, X  | 1  | 0  | Operand is X; operator is S                                  |
+|               | 1  | 1  | (N/A: reserved for expansion)                                |
+| C.xx    A, X  | 0  | 0  | Conditionally write AU result to register selected for X     |
+| C.xx    A, RI | 0  | 1  | Conditionally write AU result to intermediate register `RI`  |
+| C.xx    A, PC | 1  | 0  | Conditionally write AU result to `PC` for X                  |
+|               | 1  | 1  | (N/A: reserved for expansion)                                |
+| C.xx    L, RX | 0  | 0  | Conditionally write LU result to register selected for X     |
+| C.xx    L, RI | 0  | 1  | Conditionally write LU result to intermediate register `RI`  |
+| C.xx    L, PC | 1  | 0  | Conditionally write LU result to `PC` for X                  |
+|               | 1  | 1  | (N/A: reserved for expansion)                                |
+| M.xx          | x  | 0  | Address is AU result, write data is LU result, if applicable |
+| M.xx          | x  | 1  | Address is LU result, write data is AU result, if applicable |
+
+{ some minor fixes needed to the above }
+
 !!!!!!!! Up to here in the updating !!!!!!!!!!!!!!
 
 Update with info on:
