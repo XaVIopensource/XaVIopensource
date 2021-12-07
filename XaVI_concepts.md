@@ -69,7 +69,7 @@ Two XaVI subsystems on an Analog IC:
 * Although the final 32-word programs may be hand-assembled, the C compiler accelerates development and evaluation.
 
 
-# 1.6. Thrid example 'Local Processor' System
+# 1.6. Third example 'Local Processor' System
 
 A Local processor on an Analog IC.
 * XaVI masters a SPI bus to which a serial EEPROM is connected. 
@@ -136,7 +136,7 @@ And now the analogy:
 * The `Datapath` of a CPU has some separate components. For XaVI: `RU`, `MU`, `AU`, `LU`, `SU`, `KU` and `CU` register, memory, arithmetic, logic, shift, konstant and conditional units, involved in instructions such as `MOVE`, `STORE`, `ADD`/`SUB`, `AND`/`XOR`, `LSR`/`ROLC`, `LD #1, R2` and `BRNZ` respectively.
 * Operations on these units are called _quarks_. They are the smallest processing operation.
 * A number of _quarks_ combine to form a _hadron_: the smallest possible instruction, performed within 1 processing clock cycle. An important constraint: there cannot be more than 1 type of quark in any hadron. You cannot use the `AU` hardware to do more than one thing at a time, for example. A hypothetical hadronic instruction such as `AND.NZ #4(R1), R2` can be broke down to (i) `RU` provides R1 and R2, (ii) `KU` provides '#4', (iii) `AU` provides 'R1+4', (iv) `MU` provides the contents of address `R1+4`, (v) `LU` performs the AND operation, (vi) `CU` decides whether the result will be stored in R2 based upon the state of the zero flag. The `SU` shift unit is not used. It would not be possible to change this hadron to `ADD.NZ #4(R1), R2` unless there was an additional adder within the datapath. This sets out the _maximum_ that a hadron could implement, irrespective of how these units are wired up (glued together). The CPU might support a conditional jumps but not conditional-ANDs.
-* A number of _hadrons_ can combine to for an _ion_. Every ion involves an instruction fetch and most ions will have only 1 hadron (irrelevant fact: Hydrogen H+ ion is a 1-hadron ion and Hydrogen is the most abundant element in the universe, accounting for about 75% of all matter). A multi-hadron ion is needed for an operation where 1 hardware unit is needed to do more than 1 thing. For example, a hypothetical `RETI` return-from-interrupt instruction pulls both the `PC` program count and `SF` status flags from memory. The `MU` cannot do both of these in the same processor cycle.
+* A number of _hadrons_ can combine to form an _ion_. Every ion involves an instruction fetch and most ions will have only 1 hadron (irrelevant fact: Hydrogen H+ ion is a 1-hadron ion and Hydrogen is the most abundant element in the universe, accounting for about 75% of all matter). A multi-hadron ion is needed for an operation where 1 hardware unit is needed to do more than 1 thing. For example, a hypothetical `RETI` return-from-interrupt instruction pulls both the `PC` program count and `SF` status flags from memory. The `MU` cannot do both of these in the same processor cycle.
 * A number of _ions_ can combine to form a _molecule_. For example, a read-modify-write molecule might consist of the ions (i) disable interrupt, (ii) OR memory with register, (iii) store register to memory, and (iv) enable interrupts. This is , using the computing term 'atomic'
 
 Ultimately, processing is one long stream of _quarks_. Conventionally, a C compiler transforms C source code into such a stream, packaged up into _ions_.
@@ -293,7 +293,7 @@ The combinatorial path through `Datapath` might be long. For example, in executi
 - back to `DRDATA` read data,
 - through to the input of register Ry.
 
-New terminology: 'fence'. At various points, fences will need to be inserted into the datapath. (I use the term 'fence' when 'gate' would have made a better analogy - except of course that 'gate' is fundamentally defined already.) These fences may be one of:
+Some more new terminology: 'fence'. At various points, fences will need to be inserted into the datapath. (I use the term 'fence' when 'gate' would have made a better analogy - except of course that 'gate' is fundamentally defined already.) These fences may be one of:
 - AND gates, to force downstream nodes to to reduce unnecessary transitions.
 - latches, to hold downstream nodes stable to reduce unnecessary transitions during part of the dataflow through the `Datapath`.
 - flip-flops, performing the same roll as latches, but in the context of added pipelining.
@@ -329,43 +329,43 @@ Reminder: multiple quarks will be executed per processor instruction cycle.
 The VLIW instruction codes that control the `Datapath` hardware are easily derived from these quark instruction codings.
 
 
-| Mnemonic       | Size  | 15 | 14 | 13 | 12 | 11 | 10 | 9  | 8  | 7  | 6  | 5  | 4  | 3  | 2  | 1  | 0  | 15:0    | Description                         | Pseudocode                                  |
-|----------------|-------|----|----|----|----|----|----|----|----|----|----|----|----|----|----|----|----|---------|-------------------------------------|---------------------------------------------|
-| R.NUL          | W     | 0  | 0  | 0  | 0  | 0  | -  | -  | -  | -  | -  | -  | -  | -  | -  | -  | -  | -       | (Register unit null operation)      | X=reg[0]; Y=reg[0];                         |
-| R.SEL   r2, r3 | W     | 0  | 0  | 0  | 0  | 1  | -  | x4 | y4 | y3 | y2 | y1 | y0 | x3 | x2 | x1 | x0 | -       | Register selects                    | X=reg[x]; Y=reg[y];                         |
-| K.IMM   0x1234 | W     | 0  | 0  | 0  | 1  | 0  | 0  | 0  | 0  | -  | -  | -  | -  | -  | -  | -  | -  | n[15:0] | Set immediate constant              | K=n;                                        |
-| K.IMM   0x56   | B     | 0  | 0  | 0  | 1  | 0  | 0  | 0  | 1  | n7 | n6 | n5 | n4 | n3 | n2 | n1 | n0 | -       | Set immediate constant (byte)       | K=n;                                        |
-| K.RD           | B/W   | 0  | 0  | 0  | 1  | 0  | 0  | 1  | 0  | b  | -  | -  | -  | -  | -  | -  | -  | -       | Select memory read                  | K=mem[daddr];                               |
-| S.NUL          |       | 0  | 0  | 1  | 0  | 0  | 0  | 0  | 0  | -  | -  | -  | -  | -  | -  | -  | -  | -       | (Shift unit null operation)         | S =  op1                                    |
-| S.LA   K       | W     | 0  | 0  | 1  | 0  | 0  | 1  | 0  | 0  | -  | -  | s5 | s4 | n3 | n2 | n1 | n0 | -       | Shift left arithmetic               | S =  op1 << n                               |
-| SWAB           | B<->B | 0  | 0  | 1  | 0  | 1  | 0  | 0  | 0  | -  | -  | s5 | s4 | -  | -  | -  | -  | -       | Swap bytes                          | S = { op1[7:0], op1[15:8] }                 |
-| S.EXT          | B->W  | 0  | 0  | 1  | 0  | 1  | 0  | 0  | 1  | -  | -  | s5 | s4 | -  | -  | -  | -  | -       | Sign extend                         | S = { 8{op1[7]}, op1[7:0] }                 |
-| S.RA           | B/W   | 0  | 0  | 1  | 0  | 1  | 1  | 0  | 0  | -  | -  | s5 | s4 | n3 | n2 | n1 | n0 | -       | Shift right arithmetic              | S =  op1 >> n                               |
-| S.RR           | B/W   | 0  | 0  | 1  | 0  | 1  | 1  | 0  | 1  | b  | -  | s5 | s4 | n3 | n2 | n1 | n0 | -       | Shift: right rotation               | S =  rotate( op1  >> n )                    |
-| S.RRC          | B/W   | 0  | 0  | 1  | 0  | 1  | 1  | 1  | 0  | b  | -  | s5 | s4 | n3 | n2 | n1 | n0 | -       | Shift: right rotation through carry | S =  rotate({ c, op1 } >> n )               |
-| L.NUL          | B/W   | 0  | 0  | 1  | 1  | 1  | 0  | 0  | 0  | b  | -  | -  | -  | -  | -  | -  | -  | -       | (Logic unit null operation)         | L = op1                                     |
-| L.AND          | B/W   | 0  | 0  | 1  | 1  | 1  | 0  | 0  | 0  | b  | -  | s5 | s4 | -  | -  | -  | -  | -       | Logical AND                         | L = op1 & op2                               |
-| L.OR           | B/W   | 0  | 0  | 1  | 1  | 1  | 0  | 0  | 1  | b  | -  | s5 | s4 | -  | -  | -  | -  | -       | Logical OR                          | L = op1 | op2                               |
-| L.XOR          | B/W   | 0  | 0  | 1  | 1  | 1  | 0  | 1  | 0  | b  | -  | s5 | s4 | -  | -  | -  | -  | -       | Logical XOR                         | L = op1 ^ op2                               |
-| L.ANT          | B/W   | 0  | 0  | 1  | 1  | 1  | 0  | 1  | 1  | b  | -  | s5 | s4 | -  | -  | -  | -  | -       | Logical And-NoT: a&~b               | L = op1 & ~op2                              |
-| A.NUL          |       | 0  | 1  | 0  | 0  | 0  | 0  | 0  | 0  | b  | -  | -  | -  | -  | -  | -  | -  | -       | Arithmetic: add                     | A = op1 + op2                               |
-| ADD            | B/W   | 0  | 1  | 0  | 0  | 1  | 0  | 0  | 0  | b  | -  | s5 | s4 | -  | -  | -  | -  | -       | Arithmetic: add                     | A = op1 + op2                               |
-| ADC            | B/W   | 0  | 1  | 0  | 0  | 1  | 0  | 0  | 1  | b  | -  | s5 | s4 | -  | -  | -  | -  | -       | Arithmetic: add with carry          | A = op1 + op2 + C                           |
-| A.SUB          | B/W   | 0  | 1  | 0  | 0  | 1  | 0  | 1  | 0  | b  | -  | s5 | s4 | -  | -  | -  | -  | -       | Arithmetic: subtract                | A = op1 + ~op2 + 1                          |
-| A.SBC          | B/W   | 0  | 1  | 0  | 0  | 1  | 0  | 1  | 1  | b  | -  | s5 | s4 | -  | -  | -  | -  | -       | Arithmetic: subtract with carry     | A = op1 + ~op2 + ~C                         |
-| C.NO           |       | 0  | 1  | 0  | 1  | 0  | 0  | 0  | 0  | -  | -  | -  | -  | -  | -  | -  | -  | -       | Condition: write never              |                                             |
-| C.YES          |       | 0  | 1  | 0  | 1  | 0  | 0  | 0  | 1  | -  | s6 | s5 | s4 | -  | -  | -  | -  | -       | Condition: write always             | r[op1] = s6 ? A : L                         |
-| C.NZ           |       | 0  | 1  | 0  | 1  | 1  | 0  | 0  | 0  | -  | s6 | s5 | s4 | -  | -  | -  | -  | -       | Condition: write Rx if Z=0          | if (Z==0){ r[op1] = s6 ? A : L }            |
-| C.Z            |       | 0  | 1  | 0  | 1  | 1  | 0  | 0  | 1  | -  | s6 | s5 | s4 | -  | -  | -  | -  | -       | Condition: write Rx if Z=1          | if (Z==1){ r[op1] = s6 ? A : L }            |
-| C.NC           |       | 0  | 1  | 0  | 1  | 1  | 0  | 1  | 0  | -  | s6 | s5 | s4 | -  | -  | -  | -  | -       | Condition: write Rx if C=0          | if (C==0){ r[op1] = s6 ? A : L }            |
-| C.C            |       | 0  | 1  | 0  | 1  | 1  | 0  | 1  | 1  | -  | s6 | s5 | s4 | -  | -  | -  | -  | -       | Condition: write Rx if C=1          | if (C==1){ r[op1] = s6 ? A : L }            |
-| C.NN           |       | 0  | 1  | 0  | 1  | 1  | 1  | 0  | 0  | -  | s6 | s5 | s4 | -  | -  | -  | -  | -       | Condition: write Rx if N=0          | if (N==0){ r[op1] = s6 ? A : L }            |
-| C.NEG          |       | 0  | 1  | 0  | 1  | 1  | 1  | 0  | 1  | -  | s6 | s5 | s4 | -  | -  | -  | -  | -       | Condition: write Rx if N=1          | if (N==1){ r[op1] = s6 ? A : L }            |
-| C.GTE          |       | 0  | 1  | 0  | 1  | 1  | 1  | 1  | 0  | -  | s6 | s5 | s4 | -  | -  | -  | -  | -       | Condition: write Rx if N=V          | if (N==V){ r[op1] = s6 ? A : L }            |
-| C.LT           |       | 0  | 1  | 0  | 1  | 1  | 1  | 1  | 1  | -  | s6 | s5 | s4 | -  | -  | -  | -  | -       | Condition: write Rx if N!=V         | if (N!=V){ r[op1] = s6 ? A : L }            |
-| M.NUL          |       | 0  | 1  | 1  | 0  | 0  | 0  | 0  | 0  | -  | -  | -  | -  | -  | -  | -  | -  | -       | (Memory unit null operation)        |                                             |
-| M.RD           | B/W   | 0  | 1  | 1  | 0  | 1  | 0  | 0  | 0  | b  | -  | s5 | s4 | -  | -  | -  | -  | -       | Memory read request                 | daddr = s5 ? A : L                          |
-| M.WR           | B/W   | 0  | 1  | 1  | 0  | 1  | 0  | 0  | 1  | b  | -  | s5 | s4 | -  | -  | -  | -  | -       | Memory write                        | daddr = s5 ? A : L; mem[daddr] = s4 ? A : L |
+| Mnemonic       | Size  | 15:12 | 11 | 10 | 9  | 8  | 7  | 6  | 5  | 4  | 3:0    | 15:0    | Description                         | Pseudocode                                  |
+|----------------|-------|-------|----|----|----|----|----|----|----|----|--------|---------|-------------------------------------|---------------------------------------------|
+| _R.NUL_        | W     | 0000  | 0  | -  | -  | -  | -  | -  | -  | -  | -      | -       | (Register unit null operation)      | X=reg[0]; Y=reg[0];                         |
+| R.SEL   r2, r3 | W     | 0000  | 1  | -  | x4 | y4 | y3 | y2 | y1 | y0 | x[3:0] | -       | Register selects                    | X=reg[x]; Y=reg[y];                         |
+| K.IMM   0x1234 | W     | 0001  | 0  | 0  | 0  | 0  | -  | -  | -  | -  | -      | n[15:0] | Set immediate constant              | K=n;                                        |
+| K.IMM   0x56   | B     | 0001  | 0  | 0  | 0  | 1  | n7 | n6 | n5 | n4 | n[3:0] | -       | Set immediate constant (byte)       | K=n;                                        |
+| K.RD           | B/W   | 0001  | 0  | 0  | 1  | 0  | b  | -  | -  | -  | -      | -       | Select memory read                  | K=mem[daddr];                               |
+| _S.NUL_        |       | 0010  | 0  | 0  | 0  | 0  | -  | -  | -  | -  | -      | -       | (Shift unit null operation)         | S =  op1                                    |
+| S.LA   K       | W     | 0010  | 0  | 1  | 0  | 0  | -  | -  | s5 | s4 | n[3:0] | -       | Shift left arithmetic               | S =  op1 << n                               |
+| SWAB           | B<->B | 0010  | 1  | 0  | 0  | 0  | -  | -  | s5 | s4 | -      | -       | Swap bytes                          | S = { op1[7:0], op1[15:8] }                 |
+| S.EXT          | B->W  | 0010  | 1  | 0  | 0  | 1  | -  | -  | s5 | s4 | -      | -       | Sign extend                         | S = { 8{op1[7]}, op1[7:0] }                 |
+| S.RA           | B/W   | 0010  | 1  | 1  | 0  | 0  | -  | -  | s5 | s4 | n[3:0] | -       | Shift right arithmetic              | S =  op1 >> n                               |
+| S.RR           | B/W   | 0010  | 1  | 1  | 0  | 1  | b  | -  | s5 | s4 | n[3:0] | -       | Shift: right rotation               | S =  rotate( op1  >> n )                    |
+| S.RRC          | B/W   | 0010  | 1  | 1  | 1  | 0  | b  | -  | s5 | s4 | n[3:0] | -       | Shift: right rotation through carry | S =  rotate({ c, op1 } >> n )               |
+| _L.NUL_        | B/W   | 0011  | 1  | 0  | 0  | 0  | b  | -  | -  | -  | -      | -       | (Logic unit null operation)         | L = op1                                     |
+| L.AND          | B/W   | 0011  | 1  | 0  | 0  | 0  | b  | -  | s5 | s4 | -      | -       | Logical AND                         | L = op1 & op2                               |
+| L.OR           | B/W   | 0011  | 1  | 0  | 0  | 1  | b  | -  | s5 | s4 | -      | -       | Logical OR                          | L = op1 | op2                               |
+| L.XOR          | B/W   | 0011  | 1  | 0  | 1  | 0  | b  | -  | s5 | s4 | -      | -       | Logical XOR                         | L = op1 ^ op2                               |
+| L.ANT          | B/W   | 0011  | 1  | 0  | 1  | 1  | b  | -  | s5 | s4 | -      | -       | Logical And-NoT: a&~b               | L = op1 & ~op2                              |
+| _A.NUL_        |       | 0100  | 0  | 0  | 0  | 0  | b  | -  | -  | -  | -      | -       | Arithmetic: add                     | A = op1 + op2                               |
+| ADD            | B/W   | 0100  | 1  | 0  | 0  | 0  | b  | -  | s5 | s4 | -      | -       | Arithmetic: add                     | A = op1 + op2                               |
+| ADC            | B/W   | 0100  | 1  | 0  | 0  | 1  | b  | -  | s5 | s4 | -      | -       | Arithmetic: add with carry          | A = op1 + op2 + C                           |
+| A.SUB          | B/W   | 0100  | 1  | 0  | 1  | 0  | b  | -  | s5 | s4 | -      | -       | Arithmetic: subtract                | A = op1 + ~op2 + 1                          |
+| A.SBC          | B/W   | 0100  | 1  | 0  | 1  | 1  | b  | -  | s5 | s4 | -      | -       | Arithmetic: subtract with carry     | A = op1 + ~op2 + ~C                         |
+| _C.NO_         |       | 0101  | 0  | 0  | 0  | 0  | -  | -  | -  | -  | -      | -       | Condition: write never              |                                             |
+| C.YES          |       | 0101  | 0  | 0  | 0  | 1  | -  | s6 | s5 | s4 | -      | -       | Condition: write always             | r[op1] = s6 ? A : L                         |
+| C.NZ           |       | 0101  | 1  | 0  | 0  | 0  | -  | s6 | s5 | s4 | -      | -       | Condition: write Rx if Z=0          | if (Z==0){ r[op1] = s6 ? A : L }            |
+| C.Z            |       | 0101  | 1  | 0  | 0  | 1  | -  | s6 | s5 | s4 | -      | -       | Condition: write Rx if Z=1          | if (Z==1){ r[op1] = s6 ? A : L }            |
+| C.NC           |       | 0101  | 1  | 0  | 1  | 0  | -  | s6 | s5 | s4 | -      | -       | Condition: write Rx if C=0          | if (C==0){ r[op1] = s6 ? A : L }            |
+| C.C            |       | 0101  | 1  | 0  | 1  | 1  | -  | s6 | s5 | s4 | -      | -       | Condition: write Rx if C=1          | if (C==1){ r[op1] = s6 ? A : L }            |
+| C.NN           |       | 0101  | 1  | 1  | 0  | 0  | -  | s6 | s5 | s4 | -      | -       | Condition: write Rx if N=0          | if (N==0){ r[op1] = s6 ? A : L }            |
+| C.NEG          |       | 0101  | 1  | 1  | 0  | 1  | -  | s6 | s5 | s4 | -      | -       | Condition: write Rx if N=1          | if (N==1){ r[op1] = s6 ? A : L }            |
+| C.GTE          |       | 0101  | 1  | 1  | 1  | 0  | -  | s6 | s5 | s4 | -      | -       | Condition: write Rx if N=V          | if (N==V){ r[op1] = s6 ? A : L }            |
+| C.LT           |       | 0101  | 1  | 1  | 1  | 1  | -  | s6 | s5 | s4 | -      | -       | Condition: write Rx if N!=V         | if (N!=V){ r[op1] = s6 ? A : L }            |
+| _M.NUL_        |       | 0110  | 0  | 0  | 0  | 0  | -  | -  | -  | -  | -      | -       | (Memory unit null operation)        |                                             |
+| M.RD           | B/W   | 0110  | 1  | 0  | 0  | 0  | b  | -  | s5 | s4 | -      | -       | Memory read request                 | daddr = s5 ? A : L                          |
+| M.WR           | B/W   | 0110  | 1  | 0  | 0  | 1  | b  | -  | s5 | s4 | -      | -       | Memory write                        | daddr = s5 ? A : L; mem[daddr] = s4 ? A : L |
 
 
 
@@ -394,13 +394,35 @@ The operands referred to in the table above are selected as per the table below.
 
 { some minor fixes needed to the above }
 
+
+The complex MSP430 instruction `AND 0x12(R2), 0x34(R2)` is encoded in just 3 words (6 bytes). Its operation can be broken down into the following 15 quarks, starting from `LD R2, RZ` running left to right and top to bottom, finishing at `M.WR A, L`:
+
+| `RU`        | `KU`         | `SU`      | `LU`       | `AU`       | `MU`        | `CU`         | Description                                                       |
+|-------------|--------------|-----------|------------|------------|-------------|--------------|-------------------------------------------------------------------|
+| `R.LD R2, RZ` | `K.IMM 0x12` |           |            | `ADD K, X` | `M.RD A`    |              | Initiate read of R2+0x12                                          |
+|             | `K.RD`       | `_S.NUL_` | `_L.NUL_`  |            |             | `CYES L, RI` | Store data read from R2+0x12 in RI for later                      |
+| `LD R3, RZ` | `K.IMM 0x34` |           |            | `ADD K, X` | `M.RD A`    | `CYES A, RI` | Initiate read of R3+0x34, store this calculated address for later |
+| `LD RI, RZ` | `K.RD`       | `_S.NUL_` | `AND K, X` | `_A.NUL_`  | `M.WR A, L` |              | AND previously-read data with read data. Write result to memory.  |
+
+These quarks would require 17 words (34 bytes) of instructions and be executed over 4 hadrons.
+
 !!!!!!!! Up to here in the updating !!!!!!!!!!!!!!
+
+* Take R2 and the constant 0x12 and add them together to produce the address for a read.
+* Store that read value temporarily.
+* Take R3 and the constant 0x34 and add them together to produce the address for a read.
+* Take the read value and AND it with the temporarily-stored value.
+
 
 Update with info on:
 * Quark compiler
 * Sequence R-K-S-L-A-C-M
 * Quark instruction set
 * Gluer sequence
+
+Rules for gluing quarks together:
+* Every hadron begins with a `R.LD`
+
 
 
 
