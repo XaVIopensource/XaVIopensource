@@ -395,16 +395,29 @@ The operands referred to in the table above are selected as per the table below.
 { some minor fixes needed to the above }
 
 
+# Quark Instruction Example
+
 The complex MSP430 instruction `AND 0x12(R2), 0x34(R2)` is encoded in just 3 words (6 bytes). Its operation can be broken down into the following 15 quarks, starting from `LD R2, RZ` running left to right and top to bottom, finishing at `M.WR A, L`:
 
 | `RU`        | `KU`         | `SU`      | `LU`       | `AU`       | `MU`        | `CU`         | Description                                                       |
 |-------------|--------------|-----------|------------|------------|-------------|--------------|-------------------------------------------------------------------|
 | `R.LD R2, RZ` | `K.IMM 0x12` |           |            | `ADD K, X` | `M.RD A`    |              | Initiate read of R2+0x12                                          |
-|             | `K.RD`       | `_S.NUL_` | `_L.NUL_`  |            |             | `CYES L, RI` | Store data read from R2+0x12 in RI for later                      |
-| `LD R3, RZ` | `K.IMM 0x34` |           |            | `ADD K, X` | `M.RD A`    | `CYES A, RI` | Initiate read of R3+0x34, store this calculated address for later |
+|             | `K.RD`       | `_S.NUL_` | `_L.NUL_`  |            |             | `C.YES L, RI` | Store data read from R2+0x12 in RI for later                      |
+| `LD R3, RZ` | `K.IMM 0x34` |           |            | `ADD K, X` | `M.RD A`    | `C.YES A, RI` | Initiate read of R3+0x34, store this calculated address for later |
 | `LD RI, RZ` | `K.RD`       | `_S.NUL_` | `AND K, X` | `_A.NUL_`  | `M.WR A, L` |              | AND previously-read data with read data. Write result to memory.  |
 
-These quarks would require 17 words (34 bytes) of instructions and be executed over 4 hadrons.
+{ inconsistency in naming instructions and much else. Need to separate read data from `KU` and update example. }
+
+These quarks would require 17 words (34 bytes) of instructions and be executed over 4 hadrons - rather more than the MSP430's 6 bytes. But the above quarks can easily be combined to form VLIW instructions and the Huffman instructions could be just as compressed as the MSP430's.
+
+Perhaps the whole stream can be considered as microcode for the one instruction, but this microcode is only 4 clock cycles long. Custom, application-specific instructions could be longer but most actual instructions will only be 1 cycle long. Generally, the quarks are strung together with combinatorial logic, not sequential. The rules for breaking them up into hadrons (cycles) are:
+
+* Every hadron starts with a `R.LD` instruction, even if it is a `R.LD RZ, RZ`. 
+* The variables X, Y, S, L and A do not persist beyond the cyle. Whatever information needed to be passed forward must be stored in a register.
+* The quarks are ordered R, K, S, L, A, M and C within the hadron and executed in that order. If a logic operation needs to be executed after an arithmetic operation it must be done in the next hadron, with any information passed through a register (likely: `RI`).
+
+
+
 
 !!!!!!!! Up to here in the updating !!!!!!!!!!!!!!
 
@@ -420,10 +433,7 @@ Update with info on:
 * Quark instruction set
 * Gluer sequence
 
-Rules for gluing quarks together:
-* Every hadron begins with a `R.LD`
-
-
+`
 
 
 ### Generating custom instructions using the compiler???
